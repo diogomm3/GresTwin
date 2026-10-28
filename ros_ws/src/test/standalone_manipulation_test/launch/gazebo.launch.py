@@ -1,8 +1,14 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, LogInfo, RegisterEventHandler, Shutdown
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    LogInfo,
+    RegisterEventHandler,
+    Shutdown,
+)
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, PathJoinSubstitution
+from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -11,21 +17,22 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     package_share = FindPackageShare("stoneware_manipulation_test")
     world_file = PathJoinSubstitution([package_share, "worlds", "stoneware.world.sdf"])
-    xacro_file = PathJoinSubstitution(
-        [package_share, "urdf", "stoneware_arm.urdf.xacro"]
+    xacro_file = PathJoinSubstitution([package_share, "urdf", "stoneware_arm.urdf.xacro"])
+    gazebo_gui = ExecuteProcess(
+        cmd=["gz", "sim", world_file, "-r"],
+        condition=UnlessCondition(LaunchConfiguration("headless")),
+        name="gazebo",
+        output="screen",
+        on_exit=Shutdown(reason="Gazebo exited."),
     )
-    gazebo_launch = PathJoinSubstitution(
-        [FindPackageShare("ros_gz_sim"), "launch", "gz_sim.launch.py"]
+    gazebo_server = ExecuteProcess(
+        cmd=["gz", "sim", world_file, "-r", "-s"],
+        condition=IfCondition(LaunchConfiguration("headless")),
+        name="gazebo",
+        output="screen",
+        on_exit=Shutdown(reason="Gazebo exited."),
     )
     robot_description = ParameterValue(Command(["xacro ", xacro_file]), value_type=str)
-
-    gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(gazebo_launch),
-        launch_arguments={
-            "gz_args": [world_file, " -r"],
-            "on_exit_shutdown": "true",
-        }.items(),
-    )
     robot_state_publisher = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -54,28 +61,33 @@ def generate_launch_description():
             }
         ],
     )
-    joint_state_broadcaster_spawner = Node(
+    controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+        arguments=[
+            "joint_state_broadcaster",
+            "arm_controller",
+            "--controller-manager",
+            "/controller_manager",
+        ],
         output="screen",
     )
-    arm_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["arm_controller", "--controller-manager", "/controller_manager"],
-        output="screen",
-    )
-    clock_bridge = Node(
+    simulation_bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
-        arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"],
+        arguments=[
+            "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
+            "/workpiece/attach@std_msgs/msg/Empty]gz.msgs.Empty",
+            "/workpiece/detach@std_msgs/msg/Empty]gz.msgs.Empty",
+            "/workpiece/state@std_msgs/msg/String[gz.msgs.StringMsg",
+            "/model/workpiece/pose@geometry_msgs/msg/Pose[gz.msgs.Pose",
+        ],
         output="screen",
     )
 
     def start_controllers_after_spawn(event, context):
         if event.returncode == 0:
-            return [joint_state_broadcaster_spawner, arm_controller_spawner]
+            return [controller_spawner]
         return [
             LogInfo(msg="Robot spawning failed; controllers will not be started."),
             Shutdown(reason="Robot spawning failed."),
@@ -83,9 +95,16 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            gazebo,
+            DeclareLaunchArgument(
+                "headless",
+                default_value="false",
+                choices=["true", "false"],
+                description="Run Gazebo without its GUI.",
+            ),
+            gazebo_gui,
+            gazebo_server,
             robot_state_publisher,
-            clock_bridge,
+            simulation_bridge,
             spawn_robot,
             RegisterEventHandler(
                 OnProcessExit(

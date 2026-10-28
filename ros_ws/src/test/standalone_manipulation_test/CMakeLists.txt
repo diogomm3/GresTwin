@@ -8,4 +8,11 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(
+  PROGRAMS
+    scripts/pick_place_demo.py
+    scripts/validate_demo.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()
