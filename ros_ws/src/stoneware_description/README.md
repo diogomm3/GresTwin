@@ -39,10 +39,10 @@ ros2 control list_controllers
 ros2 topic echo /joint_states
 ```
 
-Command both joints in radians by publishing shoulder then elbow positions. This example moves within the configured joint limits:
+Command both joints in radians by publishing shoulder then elbow positions. This example holds the setpoint for three seconds and moves within the configured joint limits:
 
 ```bash
-ros2 topic pub --once /arm_position_controller/commands \
+ros2 topic pub --rate 10 --times 30 /arm_position_controller/commands \
   std_msgs/msg/Float64MultiArray "{data: [0.35, -0.5]}"
 ```
 
