@@ -4,7 +4,7 @@ project(stoneware_description)
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY launch rviz urdf
+  DIRECTORY config launch rviz urdf worlds
   DESTINATION share/${PROJECT_NAME}
 )
 

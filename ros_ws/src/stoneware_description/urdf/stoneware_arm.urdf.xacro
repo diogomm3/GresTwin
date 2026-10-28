@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="stoneware_arm">
+  <xacro:arg
+    name="controllers_file"
+    default="$(find stoneware_description)/config/controllers.yaml"/>
   <xacro:property name="base_radius" value="0.12"/>
   <xacro:property name="base_height" value="0.25"/>
   <xacro:property name="upper_arm_length" value="0.50"/>
@@ -16,6 +19,8 @@
   <material name="forearm_orange">
     <color rgba="0.85 0.42 0.12 1"/>
   </material>
+
+  <link name="world"/>
 
   <link name="base_link">
     <inertial>
@@ -98,6 +103,12 @@
     </collision>
   </link>
 
+  <joint name="world_fixed_joint" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
   <joint name="shoulder_joint" type="revolute">
     <parent link="base_link"/>
     <child link="upper_arm_link"/>
@@ -113,4 +124,28 @@
     <axis xyz="0 1 0"/>
     <limit lower="-2.35" upper="2.35" effort="30" velocity="2.0"/>
   </joint>
+
+  <ros2_control name="GazeboSimSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <joint name="shoulder_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="elbow_joint">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+  <gazebo>
+    <plugin
+      filename="libgz_ros2_control-system.so"
+      name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg controllers_file)</parameters>
+    </plugin>
+  </gazebo>
 </robot>
