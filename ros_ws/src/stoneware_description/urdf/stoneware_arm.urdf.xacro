@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="stoneware_arm">
+  <xacro:property name="base_radius" value="0.12"/>
+  <xacro:property name="base_height" value="0.25"/>
+  <xacro:property name="upper_arm_length" value="0.50"/>
+  <xacro:property name="upper_arm_radius" value="0.045"/>
+  <xacro:property name="forearm_length" value="0.40"/>
+  <xacro:property name="forearm_radius" value="0.035"/>
+
+  <material name="base_gray">
+    <color rgba="0.35 0.38 0.42 1"/>
+  </material>
+  <material name="upper_arm_blue">
+    <color rgba="0.15 0.35 0.75 1"/>
+  </material>
+  <material name="forearm_orange">
+    <color rgba="0.85 0.42 0.12 1"/>
+  </material>
+
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 ${base_height / 2}" rpy="0 0 0"/>
+      <mass value="5.0"/>
+      <inertia
+        ixx="${5.0 * (3 * base_radius ** 2 + base_height ** 2) / 12}"
+        ixy="0"
+        ixz="0"
+        iyy="${5.0 * (3 * base_radius ** 2 + base_height ** 2) / 12}"
+        iyz="0"
+        izz="${5.0 * base_radius ** 2 / 2}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 ${base_height / 2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${base_radius}" length="${base_height}"/>
+      </geometry>
+      <material name="base_gray"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_height / 2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${base_radius}" length="${base_height}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="upper_arm_link">
+    <inertial>
+      <origin xyz="${upper_arm_length / 2} 0 0" rpy="0 0 0"/>
+      <mass value="2.0"/>
+      <inertia
+        ixx="${2.0 * upper_arm_radius ** 2 / 2}"
+        ixy="0"
+        ixz="0"
+        iyy="${2.0 * (3 * upper_arm_radius ** 2 + upper_arm_length ** 2) / 12}"
+        iyz="0"
+        izz="${2.0 * (3 * upper_arm_radius ** 2 + upper_arm_length ** 2) / 12}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${upper_arm_length / 2} 0 0" rpy="0 ${pi / 2} 0"/>
+      <geometry>
+        <cylinder radius="${upper_arm_radius}" length="${upper_arm_length}"/>
+      </geometry>
+      <material name="upper_arm_blue"/>
+    </visual>
+    <collision>
+      <origin xyz="${upper_arm_length / 2} 0 0" rpy="0 ${pi / 2} 0"/>
+      <geometry>
+        <cylinder radius="${upper_arm_radius}" length="${upper_arm_length}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="forearm_link">
+    <inertial>
+      <origin xyz="${forearm_length / 2} 0 0" rpy="0 0 0"/>
+      <mass value="1.2"/>
+      <inertia
+        ixx="${1.2 * forearm_radius ** 2 / 2}"
+        ixy="0"
+        ixz="0"
+        iyy="${1.2 * (3 * forearm_radius ** 2 + forearm_length ** 2) / 12}"
+        iyz="0"
+        izz="${1.2 * (3 * forearm_radius ** 2 + forearm_length ** 2) / 12}"/>
+    </inertial>
+    <visual>
+      <origin xyz="${forearm_length / 2} 0 0" rpy="0 ${pi / 2} 0"/>
+      <geometry>
+        <cylinder radius="${forearm_radius}" length="${forearm_length}"/>
+      </geometry>
+      <material name="forearm_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="${forearm_length / 2} 0 0" rpy="0 ${pi / 2} 0"/>
+      <geometry>
+        <cylinder radius="${forearm_radius}" length="${forearm_length}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="shoulder_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="upper_arm_link"/>
+    <origin xyz="0 0 ${base_height}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="50" velocity="1.5"/>
+  </joint>
+
+  <joint name="elbow_joint" type="revolute">
+    <parent link="upper_arm_link"/>
+    <child link="forearm_link"/>
+    <origin xyz="${upper_arm_length} 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.35" upper="2.35" effort="30" velocity="2.0"/>
+  </joint>
+</robot>
