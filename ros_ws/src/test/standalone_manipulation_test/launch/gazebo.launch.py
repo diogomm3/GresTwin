@@ -47,7 +47,7 @@ def generate_launch_description():
             {
                 "world": "default",
                 "topic": "/robot_description",
-                "name": "stoneware_arm",
+                "name": "stoneware_manipulator",
                 "x": 0.0,
                 "y": 0.0,
                 "z": 0.0,
@@ -60,10 +60,10 @@ def generate_launch_description():
         arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
         output="screen",
     )
-    position_controller_spawner = Node(
+    arm_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["arm_position_controller", "--controller-manager", "/controller_manager"],
+        arguments=["arm_controller", "--controller-manager", "/controller_manager"],
         output="screen",
     )
     clock_bridge = Node(
@@ -75,7 +75,7 @@ def generate_launch_description():
 
     def start_controllers_after_spawn(event, context):
         if event.returncode == 0:
-            return [joint_state_broadcaster_spawner, position_controller_spawner]
+            return [joint_state_broadcaster_spawner, arm_controller_spawner]
         return [
             LogInfo(msg="Robot spawning failed; controllers will not be started."),
             Shutdown(reason="Robot spawning failed."),

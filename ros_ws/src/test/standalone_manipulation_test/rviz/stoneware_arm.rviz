@@ -46,9 +46,17 @@ Visualization Manager:
         All Enabled: true
         base_link:
           Value: true
-        forearm_link:
+        lift_link:
           Value: true
-        upper_arm_link:
+        radial_carriage_link:
+          Value: true
+        rail_link:
+          Value: true
+        tool_link:
+          Value: true
+        turntable_link:
+          Value: true
+        world:
           Value: true
       Marker Scale: 0.25
       Name: TF

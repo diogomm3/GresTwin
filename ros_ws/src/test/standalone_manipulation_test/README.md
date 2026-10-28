@@ -1,8 +1,18 @@
 # Standalone robot manipulation test
 
-This `ament_cmake` package is a standalone test example under `ros_ws/src/test/`. It contains a simple Xacro robot model, an RViz view, and a Gazebo Harmonic simulation. It is intentionally separate from future production-line packages.
+This `ament_cmake` package is a standalone robot manipulation test under `ros_ws/src/test/`. It is intentionally separate from future production-line packages. The current model is a positioning-arm foundation; object handling is added in the subsequent demo milestone.
 
-The arm has a cylindrical base fixed to the Gazebo world and two links connected by shoulder and elbow revolute joints. The links have visual, collision, and inertial geometry. Both joints rotate about the Y axis, allowing planar motion in the X-Z plane. `gz_ros2_control` exposes position command and position/velocity state interfaces for the two joints. The simulation includes only a ground plane and directional light; it does not implement object interaction or pick-and-place behavior.
+## Robot architecture
+
+The arm uses three independently actuated axes:
+
+- `yaw_joint`: revolute about world Z, limited to `[-pi, pi]` radians.
+- `radial_joint`: prismatic along the rotating X axis, with 0.30 m of fixed reach plus 0.00–0.70 m of slide.
+- `lift_joint`: prismatic along Z, limited to `[-0.35, 0.25]` m.
+
+The fixed base and rail place the tool frame at `z = 0.68 m + lift_joint`; the tool center can therefore reach approximately 0.33–0.93 m above the ground at radii of 0.30–1.00 m and any yaw angle. This is the kinematic workspace before accounting for link/table collisions. The downward-facing suction-pad-shaped tool is fixed to the lift carriage. Workpiece handling is not implemented yet; the planned grasp/release uses Gazebo's detachable fixed-joint system, not a force-based suction simulation.
+
+## RViz visualization
 
 ## RViz visualization
 
@@ -12,7 +22,7 @@ source ros_ws/install/setup.bash
 ros2 launch stoneware_manipulation_test view_robot.launch.py
 ```
 
-The launch also runs `joint_state_publisher` to provide the revolute joints' default positions so all links are visible. This is a visualization setup only; it does not command or simulate the robot.
+The launch also runs `joint_state_publisher` to provide default joint positions so all links are visible. This is a visualization setup only; it does not command or simulate the robot.
 
 ## Gazebo Harmonic simulation
 
@@ -39,14 +49,9 @@ ros2 control list_controllers
 ros2 topic echo /joint_states
 ```
 
-Command both joints in radians by publishing shoulder then elbow positions. This example holds the setpoint for three seconds and moves within the configured joint limits:
+The Gazebo simulation loads a 1 kHz controller manager alongside 1 kHz world physics. The arm is controlled with a `JointTrajectoryController` action using joint order `yaw_joint`, `radial_joint`, `lift_joint`. The manipulation sequence will use named Cartesian poses and calculate these joint targets analytically for this cylindrical geometry; it will not depend on manually entered joint commands.
 
-```bash
-ros2 topic pub --rate 10 --times 30 /arm_position_controller/commands \
-  std_msgs/msg/Float64MultiArray "{data: [0.35, -0.5]}"
-```
-
-The controller publishes to `/joint_states`; use `ros2 topic echo /joint_states` to observe the commanded positions. This is a basic position-control demonstration, not a trajectory planner.
+The current simulation is a robot/controller smoke test; the standalone pick-and-place sequence and workpiece are added in the next milestone.
 
 Process the model from the repository root with:
 
