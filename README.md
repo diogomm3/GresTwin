@@ -1,6 +1,6 @@
 # GresTwin Pick-and-Place
 
-Development environment for a future ROS 2 robot-arm pick-and-place simulation. The repository currently contains only workspace/tooling scaffolding; no robot, world, or simulation has been implemented.
+Development environment for a ROS 2 robot-arm pick-and-place simulation. The repository contains a basic Gazebo/RViz robot simulation and is being extended as a focused standalone manipulation example before production-line stations are added.
 
 ## Recommended stack
 
@@ -57,7 +57,7 @@ uv sync
 uv run ruff check .
 ```
 
-ROS packages will live under `ros_ws/src/`. Once packages are added, install their declared system dependencies and build from the workspace:
+ROS packages live under `ros_ws/src/`. The isolated manipulation example is grouped under `ros_ws/src/test/standalone_manipulation_test/`; `test/` is not itself a ROS package, so colcon recursively discovers the package below it. Install declared system dependencies and build from the workspace:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -67,7 +67,7 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-`ros_ws/build`, `ros_ws/install`, and `ros_ws/log` are generated artifacts and are ignored by Git.
+`ros_ws/build`, `ros_ws/install`, and `ros_ws/log` are generated artifacts and are ignored by Git. Colcon commands run from the repository root may also create a root-level `log/` directory, which is ignored as well.
 
 ## WSL2 note
 

@@ -9,7 +9,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    package_share = FindPackageShare("stoneware_description")
+    package_share = FindPackageShare("stoneware_manipulation_test")
     world_file = PathJoinSubstitution([package_share, "worlds", "stoneware.world.sdf"])
     xacro_file = PathJoinSubstitution(
         [package_share, "urdf", "stoneware_arm.urdf.xacro"]

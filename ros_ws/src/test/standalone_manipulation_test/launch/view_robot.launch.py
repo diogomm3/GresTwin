@@ -9,13 +9,13 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     xacro_file = PathJoinSubstitution(
         [
-            FindPackageShare("stoneware_description"),
+            FindPackageShare("stoneware_manipulation_test"),
             "urdf",
             "stoneware_arm.urdf.xacro",
         ]
     )
     rviz_config = PathJoinSubstitution(
-        [FindPackageShare("stoneware_description"), "rviz", "stoneware_arm.rviz"]
+        [FindPackageShare("stoneware_manipulation_test"), "rviz", "stoneware_arm.rviz"]
     )
     robot_description = ParameterValue(Command(["xacro ", xacro_file]), value_type=str)
 

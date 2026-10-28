@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>stoneware_description</name>
+  <name>stoneware_manipulation_test</name>
   <version>0.1.0</version>
-  <description>URDF and Xacro robot descriptions for the Stoneware production-line simulation.</description>
+  <description>Standalone robot manipulation test example using ROS 2 Jazzy and Gazebo Harmonic.</description>
   <maintainer email="maintainers@grestwin.example">GresTwin maintainers</maintainer>
   <license>Apache-2.0</license>
 

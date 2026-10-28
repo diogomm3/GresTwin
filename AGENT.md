@@ -9,7 +9,7 @@ A ROS 2 project to develop each workstation independently, test it, then integra
 3. Transfer a cut piece to the next machine, respecting overhead clearance; trigger the machine only after the arm has cleared the area.
 4. Pick a plaque, lower until contact/force is detected, release the product, and place it on a conveyor.
 
-These are goals, not implemented features. The first milestone is only a simple robot moving one object between two locations.
+These are goals, not implemented features. First, develop and validate a standalone robot manipulation test under `ros_ws/src/test/standalone_manipulation_test/`. Do not begin production-line stations or integration until that focused example is reliable.
 
 ## Technology choices
 
@@ -125,21 +125,21 @@ Add packages incrementally; don't create empty packages for every future feature
 
 ```text
 ros_ws/src/
-├── stoneware_description/    # URDF/Xacro, frames, meshes
+├── test/
+│   └── standalone_manipulation_test/  # Self-contained robot manipulation example
 ├── stoneware_application/    # simulator-independent Python task logic
 ├── stoneware_interfaces/     # custom ROS interfaces only if needed
 └── stoneware_gazebo/         # worlds and Gazebo-specific integration
 ```
 
-Later we can add sensors and packages for the other workstations. If Isaac Sim is adopted, add a separate simulator integration rather than putting simulator-specific calls in the application layer.
+The test directory is a source grouping, not a ROS package; keep package manifests in leaf package directories so colcon can discover them. Add production-line packages and sensors only after the standalone manipulation example is validated. If Isaac Sim is adopted, add a separate simulator integration rather than putting simulator-specific calls in the application layer.
 
 ## First milestone
 
-1. Launch a simple robot model and display it in RViz.
-2. Load a small Gazebo world with two tables and one cylinder or box.
-3. Move the robot between predefined poses.
-4. Add simplified grasp/release behavior.
-5. Test the task logic independently from Gazebo where possible.
+1. Build a standalone three-axis robot manipulation test.
+2. Load a small Gazebo world with a single cylindrical workpiece.
+3. Demonstrate and verify one complete pick-and-place cycle.
+4. Keep production-line stations and multi-object workflows out of this initial example.
 
 Do not add vision, realistic suction physics, cutting logic, or all four workstations until this small demo works.
 

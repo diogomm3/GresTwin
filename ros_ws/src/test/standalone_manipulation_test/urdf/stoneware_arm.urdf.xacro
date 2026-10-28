@@ -2,7 +2,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="stoneware_arm">
   <xacro:arg
     name="controllers_file"
-    default="$(find stoneware_description)/config/controllers.yaml"/>
+    default="$(find stoneware_manipulation_test)/config/controllers.yaml"/>
   <xacro:property name="base_radius" value="0.12"/>
   <xacro:property name="base_height" value="0.25"/>
   <xacro:property name="upper_arm_length" value="0.50"/>
