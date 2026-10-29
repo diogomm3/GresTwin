@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, RegisterEventHandler, Shutdown
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, Shutdown
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -24,6 +24,7 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument("headless", default_value="false"),
             gazebo,
             demo,
             RegisterEventHandler(

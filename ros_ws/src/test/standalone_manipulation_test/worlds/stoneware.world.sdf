@@ -1,6 +1,11 @@
 <?xml version="1.0"?>
 <sdf version="1.9">
   <world name="default">
+    <gui fullscreen="0">
+      <camera name="user_camera">
+        <pose>2.3 -2.4 2.1 0 0.5 2.2</pose>
+      </camera>
+    </gui>
     <physics name="stoneware_physics" type="ignored">
       <max_step_size>0.01</max_step_size>
       <real_time_factor>1.0</real_time_factor>
