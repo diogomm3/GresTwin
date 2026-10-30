@@ -15,12 +15,13 @@ building or sourcing this workspace. Binary packages installed in
 `/opt/ros/jazzy` need no additional overlay.
 
 The launch uses the official UR description, simulation controller
-configuration, and MoveIt configuration. It starts `robot_state_publisher`
-with the URDF immediately, then starts Gazebo and spawns the robot. Only after
-successful spawning does it start `joint_state_broadcaster`, followed by the
-trajectory controller and optional MoveGroup, RViz, and demo nodes. MoveGroup
-receives the URDF as a parameter, so startup does not depend on receiving a
-one-time `/robot_description` topic message.
+configuration, and MoveIt configuration. It orchestrates robot spawning and
+controller startup sequentially, and supplies the URDF to MoveGroup as a
+parameter so startup does not depend on receiving a one-time
+`/robot_description` topic message after the state publisher has emitted it.
+After spawning, a transient-local description relay republishes until the
+Gazebo controller manager is initialized; the state publisher and controller
+spawners then start in sequence.
 The workpiece is grasped with Gazebo's detachable fixed-joint system. This is a
 simulation-only constraint: it is not a physical gripper, nor a force-based or
 contact-sensed grasp.
