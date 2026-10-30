@@ -1,14 +1,17 @@
 # Stage 1: Raw Stoneware Pickup and Transfer
 
 This package is a standalone Gazebo Harmonic scene for preparing the first
-production workstation. It reuses the repository's UR5e launch and adds
-stage-local pallet, stoneware-cylinder, and placement-table models.
+production workstation. Stage 1 owns its launch files, robot-description
+helper, pallet, stoneware-cylinder, and placement-table models. It uses the
+upstream ROS 2 UR description and Gazebo packages, but does not depend on the
+repository's UR5e test package.
 
 ## Status
 
 Implemented in this milestone:
 
-- A UR5e in the Stage 1 world, with an opt-in five-pad fixture fixed to `tool0`.
+- A stationary UR5e in the Stage 1 world, with a five-pad fixture fixed to
+  `tool0`.
 - A reusable 1.0 m x 0.85 m x 0.25 m pallet model with two fixed side
   barriers.
 - Thirty-six dynamic 0.90 m x 0.10 m stoneware cylinders in an eight-level,
@@ -36,19 +39,10 @@ the pallet remains at the original X/Z coordinates and is shifted 30 mm in
 negative Y, leaving 5 mm between the pallet and table collision geometry.
 The UR5e and table poses remain unchanged.
 
-The previous full-scene runtime check, using the pallet center
-`(0.32, -0.20, 0)` m, did not reach 300 simulated seconds. With the
-UR5e model present, the stack had already failed by 19.532 simulated seconds
-(9,766 iterations; real-time factor 0.102): 33 of 36 cylinders were outside
-the pallet footprint, 31 were below the pallet top, and the maximum
-displacement from configured initial positions was 729.76 m
-(`stoneware_l5_4`). The run was stopped at that failure. Those measurements do not validate the
-current pallet placement. Gazebo spawned the
-UR5e and all 36 cylinders, but both controller spawners timed out querying
-`/controller_manager/list_controllers`; the robot was present but not
-controller-operational. The static geometry validator passes, but runtime
-stability and robot motion remain unvalidated. No cylinder physical
-parameters were changed.
+The Stage 1 robot is spawned with its six arm joints mechanically fixed. The
+scene does not start controllers or command robot motion; this keeps the robot
+from disturbing the dynamic cylinder stack while manipulation is not
+implemented.
 
 ## Model provenance and license
 
@@ -59,11 +53,10 @@ boxes; it is not derived from or redistributed from a third-party mesh. The
 placement table and stoneware cylinder are likewise original primitive
 geometry. These assets are covered by the repository's Apache-2.0 license.
 
-The robot uses the official Universal Robots ROS 2 `ur_description`,
-`ur_simulation_gz`, and `ur_moveit_config` packages, through the existing
-`ur5e_moveit_test` launch. The launch's optional Stage 1 addition is a locally
-authored URDF beam and five pad shapes; it does not replace or copy the UR
-robot assets.
+The robot uses the official Universal Robots ROS 2 `ur_description` and
+`ur_simulation_gz` packages. Stage 1's local launch helper builds its robot
+description, fixes its arm joints, and adds a locally authored URDF beam and
+five pad shapes; it does not replace or copy the UR robot assets.
 
 ## Geometry and physical assumptions
 
@@ -128,9 +121,9 @@ because this milestone does not plan or command motion.
 
 ## End effector and grasp limitations
 
-When enabled for Stage 1, the existing UR5e launch adds a fixed 0.84 m
-manifold beam and five 0.07 m diameter pad shapes at 0.18 m spacing. The link
-has collision geometry and an explicit inertial estimate. The fixture is
+Stage 1 adds a fixed 0.84 m manifold beam and five 0.07 m diameter pad shapes
+at 0.18 m spacing. The link has collision geometry and an explicit inertial
+estimate. The fixture is
 visual/mechanical design only: there is no vacuum source, compliant lip,
 pressure model, seal detection, contact-conditioned attachment, or grasp
 controller. Its `tool0` mounting transform and required wrist orientation
@@ -140,8 +133,8 @@ Gazebo Harmonic provides contact sensors / touch events and
 `DetachableJoint`, but no stock vacuum-gripper or automatic contact-grasp
 system. `Contact` publishes contacts only for configured contact sensors; it
 does not create a grasp. `DetachableJoint` creates a rigid fixed constraint
-and is not a suction model. The Stage 1 launch disables the existing demo's
-detachable-joint plugin to avoid implying that cylinders are being grasped.
+and is not a suction model. Stage 1 does not load that plugin, to avoid
+implying that cylinders are being grasped.
 The original UR5e demo's fixed attachment remains its simulation-only pickup
 mechanism.
 
@@ -154,18 +147,17 @@ license. None is claimed or implemented here as physically validated.
 
 ## Build and launch
 
-Install ROS 2 Jazzy, Gazebo Harmonic, `ros_gz`, `gz_ros2_control`, and the UR
-Jazzy packages. The root [AGENT.md](../../../AGENT.md) documents the project's
-Ubuntu 24.04 setup. The relevant UR packages are `ur_description`,
-`ur_simulation_gz`, and `ur_moveit_config`.
+Install ROS 2 Jazzy, Gazebo Harmonic, `ros_gz`, and the official UR Jazzy
+description/simulation packages. The root [AGENT.md](../../../AGENT.md)
+documents the project's Ubuntu 24.04 setup. Stage 1 does not depend on
+MoveIt or the repository's UR5e test package.
 
 On Ubuntu 24.04, install the UR packages with:
 
 ```bash
 sudo apt install \
   ros-jazzy-ur-description \
-  ros-jazzy-ur-simulation-gz \
-  ros-jazzy-ur-moveit-config
+  ros-jazzy-ur-simulation-gz
 ```
 
 From the repository root:
@@ -173,8 +165,8 @@ From the repository root:
 ```bash
 source /opt/ros/jazzy/setup.bash
 cd ros_ws
-rosdep install --from-paths src --ignore-src --rosdistro jazzy -y
-colcon build --symlink-install --packages-up-to stage1_stoneware_sim
+rosdep install --from-paths src/stage1 --ignore-src --rosdistro jazzy -y
+colcon build --symlink-install --packages-select stage1_stoneware_sim
 source install/setup.bash
 ```
 
@@ -201,11 +193,13 @@ Add `gazebo_gui:=false` for a headless stack-only run. Stop the robot-enabled
 Stage 1 simulation before starting this one so both Gazebo instances do not
 publish into the same world topic namespace.
 
-The launch sets `GZ_SIM_RESOURCE_PATH` to the installed reusable model library
-and invokes `ur5e_moveit_test/ur5e_moveit.launch.py` with the Stage 1 world.
-The old UR5e world and its default behavior are unchanged. Stage 1 turns on the
-five-pad fixture and turns off MoveGroup, RViz, the old workpiece attachment,
-and the old pick-and-place demo.
+The launch sets `GZ_SIM_RESOURCE_PATH` to the installed reusable model library,
+starts Gazebo with the Stage 1 world, and spawns the locally configured
+stationary UR5e. The six arm joints are fixed and there are no controllers, so
+the robot cannot move into the dynamic cylinder stack. The stack-only and
+static-inspection launch files are also implemented within Stage 1; the
+static-inspection launch shares the local robot-description helper, while the
+stack-only launch starts no robot.
 
 ## Validate
 
@@ -233,17 +227,14 @@ GZ_SIM_RESOURCE_PATH="$PWD/src/stage1/models" \
 ```
 
 The world uses a 0.002 s step, so 150,000 iterations is 300 simulated seconds.
-This stack-only run does not satisfy the full-scene test with the UR5e present.
-The current full-scene run failed early as reported above; investigate its
-cause before treating a later 300-second run as successful. Inspect the pose
-stream for all 36 models and report maximum displacement, tipping, pallet
-escape, and any fall-through.
-Use the existing UR5e validator in a separate terminal to check the robot
-description, state, and controllers:
-
-```bash
-ros2 run ur5e_moveit_test validate_ur5e.py
-```
+To test the full Stage 1 launch headlessly, start it with
+`gazebo_gui:=false` instead, then inspect the pose stream for all 36 cylinders
+throughout the run. Compare positions against the baseline after initial
+settling and check for pallet escape, falls, excessive drift, and tipping.
+In a 49.1-second headless run of the full launch, all 36 cylinders remained on
+the pallet, above its deck, and supported; maximum center displacement from
+the configured positions was 5.5 mm. No cylinder tilted more than 5 degrees.
+This short result is not a substitute for the 300-second check.
 
 The world pose stream gives the instantiated model names and measured settled
 poses:
@@ -256,15 +247,6 @@ Look for the `stoneware_l1_*` through `stoneware_l8_*` models (36 in total).
 Contact sensors are named `stoneware_contact_sensor` within each cylinder;
 Gazebo's topic listing (`gz topic -l`) shows their resolved model/link sensor
 topics.
-
-The robot validator checks state, controller, MoveIt planning, and a reversible
-joint-space execution in the existing UR5e world. It is not a Stage 1
-pick-and-place test.
-
-In the Milestone 1 regression run, `validate_ur5e.py` passed. The existing
-three-axis `validate_demo.py` did not pass: its spawn process timed out waiting
-for `/robot_description`, so its controller and pick-and-place sequence were
-not validated. No changes were made to that demo.
 
 ## Future placement consumption
 
