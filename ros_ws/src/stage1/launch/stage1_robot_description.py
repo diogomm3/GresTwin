@@ -66,6 +66,11 @@ def build_stationary_robot_description():
             f"Expected six supported UR5e movable joints, found {len(movable_joints)}"
         )
     for joint in movable_joints:
+        if joint.get("name") == "shoulder_lift_joint":
+            origin = joint.find("origin")
+            if origin is None:
+                raise RuntimeError("The UR5e shoulder-lift joint has no origin")
+            origin.set("rpy", "0 1.570796327 -1.570796327")
         joint.set("type", "fixed")
 
     return ET.tostring(description, encoding="unicode"), [
