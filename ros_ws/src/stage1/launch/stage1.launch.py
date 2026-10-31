@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 from pathlib import Path
 
@@ -33,6 +34,12 @@ def generate_launch_description():
     world_file = os.path.join(
         stage1_share, "worlds", "stage1_raw_stoneware.world.sdf"
     )
+    scene_config = json.loads(
+        Path(stage1_share, "config", "stage1_scene.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    robot_x, robot_y, robot_z = scene_config["robot"]["base_pose"]
     model_path = os.path.join(stage1_share, "models")
     resource_paths = [
         model_path,
@@ -83,7 +90,18 @@ def generate_launch_description():
             Node(
                 package="ros_gz_sim",
                 executable="create",
-                arguments=["-string", robot_description, "-name", "ur"],
+                arguments=[
+                    "-string",
+                    robot_description,
+                    "-name",
+                    "ur",
+                    "-x",
+                    str(robot_x),
+                    "-y",
+                    str(robot_y),
+                    "-z",
+                    str(robot_z),
+                ],
                 output="screen",
             ),
             LogInfo(
