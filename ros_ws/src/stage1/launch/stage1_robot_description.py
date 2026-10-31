@@ -1,3 +1,4 @@
+import math
 import os
 import shutil
 import subprocess
@@ -71,11 +72,79 @@ def build_stationary_robot_description():
             if origin is None:
                 raise RuntimeError("The UR5e shoulder-lift joint has no origin")
             origin.set("rpy", "0 1.570796327 -1.570796327")
+        # elif joint.get("name") == "wrist_3_joint":
+        #     _rotate_fixed_joint_about_local_z(joint, math.pi / 2)
+        elif joint.get("name") == "wrist_1_joint":
+            _rotate_fixed_joint_about_local_z(joint, math.pi / 2)
         joint.set("type", "fixed")
 
     return ET.tostring(description, encoding="unicode"), [
         joint.get("name") for joint in movable_joints
     ]
+
+
+def _rotate_fixed_joint_about_local_z(joint, angle):
+    origin = joint.find("origin")
+    if origin is None:
+        raise RuntimeError(f"The {joint.get('name')} joint has no origin")
+    rpy = [float(value) for value in origin.get("rpy", "0 0 0").split()]
+    if len(rpy) != 3:
+        raise RuntimeError(f"The {joint.get('name')} joint has an invalid RPY origin")
+    joint_orientation = _quaternion_from_rpy(rpy)
+    local_rotation = (0.0, 0.0, math.sin(angle / 2), math.cos(angle / 2))
+    rotated_orientation = _multiply_quaternions(joint_orientation, local_rotation)
+    origin.set(
+        "rpy",
+        " ".join(
+            f"{value:.12g}" for value in _rpy_from_quaternion(rotated_orientation)
+        ),
+    )
+
+
+def _quaternion_from_rpy(rpy):
+    roll, pitch, yaw = rpy
+    half_roll = roll / 2
+    half_pitch = pitch / 2
+    half_yaw = yaw / 2
+    cr, sr = math.cos(half_roll), math.sin(half_roll)
+    cp, sp = math.cos(half_pitch), math.sin(half_pitch)
+    cy, sy = math.cos(half_yaw), math.sin(half_yaw)
+    return (
+        sr * cp * cy - cr * sp * sy,
+        cr * sp * cy + sr * cp * sy,
+        cr * cp * sy - sr * sp * cy,
+        cr * cp * cy + sr * sp * sy,
+    )
+
+
+def _multiply_quaternions(left, right):
+    lx, ly, lz, lw = left
+    rx, ry, rz, rw = right
+    return (
+        lw * rx + lx * rw + ly * rz - lz * ry,
+        lw * ry - lx * rz + ly * rw + lz * rx,
+        lw * rz + lx * ry - ly * rx + lz * rw,
+        lw * rw - lx * rx - ly * ry - lz * rz,
+    )
+
+
+def _rpy_from_quaternion(quaternion):
+    x, y, z, w = quaternion
+    roll = math.atan2(
+        2 * (w * x + y * z),
+        1 - 2 * (x * x + y * y),
+    )
+    sin_pitch = 2 * (w * y - z * x)
+    pitch = (
+        math.copysign(math.pi / 2, sin_pitch)
+        if abs(sin_pitch) >= 1
+        else math.asin(sin_pitch)
+    )
+    yaw = math.atan2(
+        2 * (w * z + x * y),
+        1 - 2 * (y * y + z * z),
+    )
+    return roll, pitch, yaw
 
 
 def _add_stage1_end_effector(robot):
