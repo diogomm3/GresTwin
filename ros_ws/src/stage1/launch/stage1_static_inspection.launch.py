@@ -2,6 +2,7 @@
 
 import importlib.util
 import os
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -20,15 +21,57 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def _build_stationary_robot_description():
-    module_path = Path(__file__).with_name("stage1_robot_description.py")
-    spec = importlib.util.spec_from_file_location(
-        "stage1_robot_description", module_path
-    )
+    ur_share = get_package_share_directory("ur5e_moveit_test")
+    sim_share = get_package_share_directory("ur_simulation_gz")
+    launch_file = Path(ur_share) / "launch" / "ur5e_moveit.launch.py"
+    spec = importlib.util.spec_from_file_location("ur5e_moveit_launch", launch_file)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load Stage 1 robot helper from {module_path}")
+        raise RuntimeError(f"Unable to load UR5e launch module from {launch_file}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.build_stationary_robot_description()
+
+    description = ET.fromstring(
+        module._build_robot_description(
+            sim_share,
+            stage1_end_effector=True,
+            enable_detachable_joint=False,
+        )
+    )
+    control_plugin = next(
+        (
+            plugin
+            for gazebo in description.findall("gazebo")
+            for plugin in gazebo.findall("plugin")
+            if plugin.get("name") == "gz_ros2_control::GazeboSimROS2ControlPlugin"
+        ),
+        None,
+    )
+    if control_plugin is None:
+        raise RuntimeError("The generated UR5e description has no gz_ros2_control plugin")
+    next(
+        gazebo
+        for gazebo in description.findall("gazebo")
+        if control_plugin in list(gazebo)
+    ).remove(control_plugin)
+
+    movable_joints = [
+        joint
+        for joint in description.findall("joint")
+        if joint.get("type") != "fixed"
+    ]
+    if len(movable_joints) != 6 or any(
+        joint.get("type") not in {"revolute", "continuous", "prismatic"}
+        for joint in movable_joints
+    ):
+        raise RuntimeError(
+            f"Expected six supported UR5e movable joints, found {len(movable_joints)}"
+        )
+    for joint in movable_joints:
+        joint.set("type", "fixed")
+
+    return ET.tostring(description, encoding="unicode"), [
+        joint.get("name") for joint in movable_joints
+    ]
 
 
 def generate_launch_description():
