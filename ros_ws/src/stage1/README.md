@@ -190,6 +190,13 @@ For a headless launch:
 ros2 launch stage1_stoneware_sim stage1.launch.py gazebo_gui:=false
 ```
 
+To build Stage 1 and start its headless launch in one step, run this script
+from any directory:
+
+```bash
+./ros_ws/src/stage1/run.sh
+```
+
 To view the pallet and complete cylinder stack without spawning the UR5e,
 launch the same world directly in Gazebo:
 
