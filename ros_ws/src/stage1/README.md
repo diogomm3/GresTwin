@@ -8,47 +8,45 @@ stage-local pallet, stoneware-cylinder, and placement-table models.
 
 Implemented in this milestone:
 
-- A UR5e in the Stage 1 world, with an opt-in five-pad fixture fixed to `tool0`.
-- A reusable 1.0 m x 0.85 m x 0.25 m pallet model with two fixed side
-  barriers.
-- Thirty-six dynamic 0.90 m x 0.10 m stoneware cylinders in an eight-level,
+- A UR5e with a five-pad suction manifold fixed to `tool0`.
+- A reusable 0.8 m x 0.5 m x 0.3 m pallet model with two fixed side barriers.
+- Fifteen dynamic 0.70 m x 0.10 m stoneware cylinders in a five-level,
   staggered stack.
 - A reusable 1.05 m x 0.50 m placement table with a visible 0.95 m x 0.40 m
   target region.
 - A static scene validator for dimensions, physical parameters, model count,
   level counts, geometric supports, barrier clearances, and initial overlaps.
-- A Gazebo contact sensor on each stoneware cylinder for later contact-aware
-  handling.
+- Gazebo contact sensors on each suction pad and stoneware cylinder.
 
-Not implemented: robot motion, grasp execution, the top-down production
-sequence, object removal after placement, cutting behavior, or a validated
-physical suction grasp. The intended order is top-down by complete level:
-`stoneware_l8_1`, then both `stoneware_l7_*`, then all
-`stoneware_l6_*`, continuing down through the bottom level. No sequence runs
-yet.
+A prior version of the first top-down pick-and-place sequence completed a
+headless end-to-end test with the reduced PoC cylinder mass. The transfer now
+adds an explicit shoulder-and-wrist rotation after lifting, then plans the
+table approach from that rotated pose. All motion segments request 50% velocity
+and acceleration scaling. In the latest reported run, MoveIt failed to find a
+collision-free path for the final table-contact motion, so the sequence aborted
+before disabling suction and releasing the cylinder. The final placement now
+uses collision-aware IK and releases the cylinder from a 20 mm hover above the
+table to avoid planning a robot contact pose at the surface. The revised
+sequence completed a headless end-to-end run, including suction release,
+retreat, and return to the initial position. The carried cylinder is only
+allowed to contact the table during final placement.
+The simulated pickup is an idealized fixed attachment after pad contact, not a
+physically validated suction grasp. Cutting behavior is not implemented. The
+intended order is top-down by complete level:
+`stoneware_l5_1`, then both `stoneware_l4_*`, then all
+`stoneware_l3_*`, continuing down through the bottom level.
 
 The side barriers are integral to the static pallet model. Their height is
-0.40 m from the pallet bottom; the inner faces have 5 mm clearance from the
-outermost bottom-level cylinders. The original Stage 1 pallet center was
-`(0.62, -0.15, 0)` m. With the wider pallet, that exact center intersects the
-unchanged table's near leg, so the current center is `(0.62, -0.18, 0)` m:
-the pallet remains at the original X/Z coordinates and is shifted 30 mm in
-negative Y, leaving 5 mm between the pallet and table collision geometry.
-The UR5e and table poses remain unchanged.
+0.40 m from the pallet bottom. Their inner faces align with the pallet's
+0.5 m-wide deck edge and are tangent to the outermost bottom-level cylinders;
+the outer faces extend 10 mm beyond the deck width.
 
-The previous full-scene runtime check, using the pallet center
-`(0.32, -0.20, 0)` m, did not reach 300 simulated seconds. With the
-UR5e model present, the stack had already failed by 19.532 simulated seconds
-(9,766 iterations; real-time factor 0.102): 33 of 36 cylinders were outside
-the pallet footprint, 31 were below the pallet top, and the maximum
-displacement from configured initial positions was 729.76 m
-(`stoneware_l5_4`). The run was stopped at that failure. Those measurements do not validate the
-current pallet placement. Gazebo spawned the
-UR5e and all 36 cylinders, but both controller spawners timed out querying
-`/controller_manager/list_controllers`; the robot was present but not
-controller-operational. The static geometry validator passes, but runtime
-stability and robot motion remain unvalidated. No cylinder physical
-parameters were changed.
+The current layout places the table at `(-0.15, 0.50, 0)` m, the UR5e base at
+`(0.50, 0.50, 0.55)` m, and the pallet at `(1.18, 0.50, 0)` m. The 0.16 m
+square pedestal supports the measured 0.151 m UR5e base footprint and is
+0.55 m high, level with the tabletop. Clearances are 45 mm from table to
+pedestal and 200 mm from pedestal to pallet. The reach figures are geometric
+estimates, not proof of collision-free MoveIt paths.
 
 ## Model provenance and license
 
@@ -61,9 +59,8 @@ geometry. These assets are covered by the repository's Apache-2.0 license.
 
 The robot uses the official Universal Robots ROS 2 `ur_description`,
 `ur_simulation_gz`, and `ur_moveit_config` packages, through the existing
-`ur5e_moveit_test` launch. The launch's optional Stage 1 addition is a locally
-authored URDF beam and five pad shapes; it does not replace or copy the UR
-robot assets.
+`ur5e_moveit_test` launch. Stage 1 adds a locally authored five-pad suction
+manifold to the robot description without modifying the upstream UR assets.
 
 ## Geometry and physical assumptions
 
@@ -74,12 +71,13 @@ the configuration.
 
 | Item | Configuration |
 | --- | --- |
-| Pallet | 1.00 m long x 0.85 m wide x 0.25 m high |
-| Side barriers | 1.00 m long x 0.02 m thick x 0.40 m high; fixed to pallet |
-| Cylinder | 0.90 m long x 0.10 m diameter |
-| Cylinder density assumption | 2,000 kg/m^3 |
-| Cylinder mass | 14.137 kg |
-| Cylinder inertia (axis / transverse) | 0.017671 / 0.963094 kg m^2 |
+| Pallet | 0.80 m long x 0.50 m wide x 0.30 m high |
+| Robot pedestal | 0.16 m x 0.16 m x 0.55 m; UR5e base footprint about 0.151 m |
+| Side barriers | 0.80 m long x 0.02 m thick x 0.40 m high; fixed to pallet |
+| Cylinder | 0.70 m long x 0.10 m diameter |
+| Cylinder density assumption | 45.473 kg/m^3 (simulation-only PoC value) |
+| Cylinder mass | 0.250 kg |
+| Cylinder inertia (axis / transverse) | 0.000313 / 0.010365 kg m^2 |
 | Bullet friction coefficient | 0.90 on cylinders; 1.00 on pallet top |
 | Cylinder / pallet-top rolling friction coefficient | 0.05 |
 | Cylinder / pallet-top restitution | 0.02 |
@@ -87,7 +85,10 @@ the configuration.
 | Placement target region | 0.95 m x 0.40 m, centered at (-0.15, 0.50) m |
 
 Density, friction, restitution, and mass are simulation assumptions, not
-experimentally measured stoneware properties. The density-based mass and solid
+experimentally measured stoneware properties. The cylinder retains its full,
+solid visual and collision geometry; the 0.25 kg mass is a deliberately reduced
+digital payload for the pickup proof of concept, not a hollow-cylinder model
+or a claim about real stoneware density. The density-based mass and solid
 cylinder inertia are calculated from the configured dimensions. The SDF
 values are the tuning points. The rolling-resistance value is a simulation
 assumption intended to limit free rolling; it is not a measurement of clay or
@@ -98,59 +99,51 @@ simulated.
 Each cylinder also exposes a Gazebo contact-sensor topic so contact can be
 observed separately from a future grasp decision.
 
-The pallet is at `(0.62, -0.18, 0)` m. Its upper deck is at z=0.25 m. All
-cylinders are parallel to its 1.0 m length. Within each level, center spacing
+The pallet is at `(1.18, 0.50, 0)` m. Its upper deck is at z=0.30 m. All
+cylinders are parallel to its 0.8 m length. Within each level, center spacing
 is 0.10 m; each upper level is shifted by half a diameter and raised by
 `sqrt(3) * 0.05 = 0.086603` m. This puts each upper cylinder in two-cylinder
-support contact without cross-sectional overlap. The base row spans 0.80 m
-across the 0.85 m pallet, leaving 25 mm to each pallet edge and 5 mm to the
-barrier inner faces. The initial cylinder centers are:
+support contact without cross-sectional overlap. The base row spans exactly
+0.50 m across the pallet and is tangent to the barrier inner faces. The initial
+cylinder centers are:
 
 | Level from bottom | Count | Center z (m) | Center y relative to pallet (m) |
 | --- | ---: | ---: | --- |
-| 1 | 8 | 0.300000 | -0.35 through 0.35, 0.10 m spacing |
-| 2 | 7 | 0.386603 | -0.30 through 0.30, 0.10 m spacing |
-| 3 | 6 | 0.473205 | -0.25 through 0.25, 0.10 m spacing |
-| 4 | 5 | 0.559808 | -0.20 through 0.20, 0.10 m spacing |
-| 5 | 4 | 0.646410 | -0.15 through 0.15, 0.10 m spacing |
-| 6 | 3 | 0.733013 | -0.10 through 0.10, 0.10 m spacing |
-| 7 | 2 | 0.819615 | -0.05, 0.05 |
-| 8 | 1 | 0.906218 | 0 |
+| 1 | 5 | 0.350000 | -0.20 through 0.20, 0.10 m spacing |
+| 2 | 4 | 0.436603 | -0.15 through 0.15, 0.10 m spacing |
+| 3 | 3 | 0.523205 | -0.10 through 0.10, 0.10 m spacing |
+| 4 | 2 | 0.609808 | -0.05, 0.05 |
+| 5 | 1 | 0.696410 | 0 |
 
-The scene places the UR5e base at the world origin. Using the UR5e shoulder
-height of approximately 0.163 m, the top-cylinder center is about 0.984 m
-from the shoulder axis; an estimated side-contact pose is about 0.995 m away.
-These exceed the UR5e's configured nominal 0.85 m reach. The target-region
-ends usable by a 0.90 m cylinder are within about 0.82 m. These are geometric
-estimates, not a MoveIt plan. Top-level pickup therefore needs a reach/layout
-review before implementing robot motion. The Stage 1 launch disables MoveGroup
-because this milestone does not plan or command motion.
+With the UR5e shoulder about 0.163 m above its base, the top-cylinder center is
+about 0.680 m from the shoulder axis and the table target center about 0.660 m
+away, within the configured 0.85 m nominal reach. These remain geometric
+estimates, not proof that IK and collision-checked approach paths will succeed.
 
-## End effector and grasp limitations
+## Suction tool PoC
 
-When enabled for Stage 1, the existing UR5e launch adds a fixed 0.84 m
-manifold beam and five 0.07 m diameter pad shapes at 0.18 m spacing. The link
-has collision geometry and an explicit inertial estimate. The fixture is
-visual/mechanical design only: there is no vacuum source, compliant lip,
-pressure model, seal detection, contact-conditioned attachment, or grasp
-controller. Its `tool0` mounting transform and required wrist orientation
-still need calibration against the actual URDF and workpiece.
+The Stage 1 robot has a fixed manifold with five collision-enabled pads spaced
+along the cylinder length. Each pad has a Gazebo contact sensor. Publish a
+Boolean command to enable or disable suction:
+
+```bash
+ros2 topic pub --once /stage1/suction/command std_msgs/msg/Bool "{data: true}"
+ros2 topic pub --once /stage1/suction/command std_msgs/msg/Bool "{data: false}"
+```
+
+When enabled, contact with a stoneware cylinder dynamically loads a detachable
+joint for that cylinder, attaching it to the manifold. No cylinder joints are
+loaded at startup. Disabling suction removes the joint and releases the
+cylinder. Pads are red while suction is off and green while it is on. The
+`/stage1/suction/enabled` and `/stage1/suction/attached` Boolean topics report
+the controller state. Suction may be enabled before making contact; the
+controller attaches the first cylinder reported by a pad sensor.
 
 Gazebo Harmonic provides contact sensors / touch events and
-`DetachableJoint`, but no stock vacuum-gripper or automatic contact-grasp
-system. `Contact` publishes contacts only for configured contact sensors; it
-does not create a grasp. `DetachableJoint` creates a rigid fixed constraint
-and is not a suction model. The Stage 1 launch disables the existing demo's
-detachable-joint plugin to avoid implying that cylinders are being grasped.
-The original UR5e demo's fixed attachment remains its simulation-only pickup
-mechanism.
-
-For Milestone 2, the available choices are (a) a custom contact/seal and
-pressure-force plugin, which is more representative but requires validation
-and tuning; (b) an external controller that requests a fixed attachment only
-after sensor-confirmed contact, which is robust but still an idealized rigid
-grasp; or (c) a third-party suction plugin, after checking compatibility and
-license. None is claimed or implemented here as physically validated.
+`DetachableJoint`, but this PoC does not simulate vacuum pressure, seal quality,
+pad compliance, or grip-force limits. It demonstrates contact-triggered
+pick/release control only; the reduced simulation mass is not evidence that a
+real suction tool can hold a cylinder of the same dimensions.
 
 ## Build and launch
 
@@ -197,6 +190,13 @@ from any directory:
 ./ros_ws/src/stage1/run.sh
 ```
 
+The script selects and prints an isolated ROS domain and Gazebo partition when
+they are not already set. This prevents unrelated or stale ROS/Gazebo
+processes from sharing Stage 1's controller-manager services and simulation
+topics. If you need to inspect or control the running Stage 1 nodes from
+another terminal, use the printed `ROS_DOMAIN_ID` and `GZ_PARTITION` there.
+Explicitly set values are preserved.
+
 To view the pallet and complete cylinder stack without spawning the UR5e,
 launch the same world directly in Gazebo:
 
@@ -209,10 +209,13 @@ Stage 1 simulation before starting this one so both Gazebo instances do not
 publish into the same world topic namespace.
 
 The launch sets `GZ_SIM_RESOURCE_PATH` to the installed reusable model library
-and invokes `ur5e_moveit_test/ur5e_moveit.launch.py` with the Stage 1 world.
-The old UR5e world and its default behavior are unchanged. Stage 1 turns on the
-five-pad fixture and turns off MoveGroup, RViz, the old workpiece attachment,
-and the old pick-and-place demo.
+and starts MoveGroup and RViz alongside the Stage 1 world. RViz is enabled by
+default; pass `rviz_enabled:=false` to disable it. The robot remains at its
+configured base pose with an unmodified `tool0` end. MoveIt trajectory execution is
+disabled, so plans can be visualized but cannot command arm movement. The launch
+copies the world collision geometry into MoveIt's planning scene from the
+Stage 1 world and model SDF files, so the pallet, stack, table, pedestal, and
+target marker are visible to the MoveIt RViz display and included in planning.
 
 ## Validate
 
@@ -224,13 +227,13 @@ ros2 run stage1_stoneware_sim validate_stage1.py
 
 The validator checks actual collision extents in the model SDF files, cylinder
 length/diameter, calculated mass and inertia, friction and restitution,
-36-instance count, all eight level counts, pairwise non-overlap, two supports
+15-instance count, all five level counts, pairwise non-overlap, two supports
 per upper cylinder, fixed barrier dimensions and clearances, and target/table
 alignment.
 
 To inspect resolved model dimensions and simulation state, start the world
 through the launch above and use Gazebo's model and topic tools. The expected
-initial count is 36. A headless 300-second check of the pallet and cylinders
+initial count is 15. A headless 300-second check of the pallet and cylinders
 without a robot can be run with:
 
 ```bash
@@ -243,7 +246,7 @@ The world uses a 0.002 s step, so 150,000 iterations is 300 simulated seconds.
 This stack-only run does not satisfy the full-scene test with the UR5e present.
 The current full-scene run failed early as reported above; investigate its
 cause before treating a later 300-second run as successful. Inspect the pose
-stream for all 36 models and report maximum displacement, tipping, pallet
+stream for all 15 models and report maximum displacement, tipping, pallet
 escape, and any fall-through.
 Use the existing UR5e validator in a separate terminal to check the robot
 description, state, and controllers:
@@ -259,7 +262,7 @@ poses:
 gz topic -e -t /world/stage1_raw_stoneware/pose/info -n 1 --json-output
 ```
 
-Look for the `stoneware_l1_*` through `stoneware_l8_*` models (36 in total).
+Look for the `stoneware_l1_*` through `stoneware_l5_*` models (15 in total).
 Contact sensors are named `stoneware_contact_sensor` within each cylinder;
 Gazebo's topic listing (`gz topic -l`) shows their resolved model/link sensor
 topics.
