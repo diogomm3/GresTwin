@@ -54,13 +54,13 @@
     <include>
       <uri>model://stage1_pallet</uri>
       <name>stage1_pallet</name>
-      <pose>1.875 0.5 0 0 0 0</pose>
+      <pose>1.18 0.5 0 0 0 0</pose>
     </include>
 
     <include>
       <uri>model://stage1_robot_pedestal</uri>
       <name>stage1_robot_pedestal</name>
-      <pose>0.875 0.5 0 0 0 0</pose>
+      <pose>0.5 0.5 0 0 0 0</pose>
     </include>
 
     <include>
@@ -87,48 +87,24 @@
       </link>
     </model>
 
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_1</name><pose>1.875 0.15 0.300000000000 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_2</name><pose>1.875 0.25 0.300000000000 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_3</name><pose>1.875 0.35 0.300000000000 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_4</name><pose>1.875 0.45 0.300000000000 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_5</name><pose>1.875 0.55 0.300000000000 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_6</name><pose>1.875 0.65 0.300000000000 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_7</name><pose>1.875 0.75 0.300000000000 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_8</name><pose>1.875 0.85 0.300000000000 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_1</name><pose>1.18 0.30 0.350000000000 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_2</name><pose>1.18 0.40 0.350000000000 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_3</name><pose>1.18 0.50 0.350000000000 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_4</name><pose>1.18 0.60 0.350000000000 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l1_5</name><pose>1.18 0.70 0.350000000000 0 0 0</pose></include>
 
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_1</name><pose>1.875 0.20 0.386602540378 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_2</name><pose>1.875 0.30 0.386602540378 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_3</name><pose>1.875 0.40 0.386602540378 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_4</name><pose>1.875 0.50 0.386602540378 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_5</name><pose>1.875 0.60 0.386602540378 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_6</name><pose>1.875 0.70 0.386602540378 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_7</name><pose>1.875 0.80 0.386602540378 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_1</name><pose>1.18 0.35 0.436602540378 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_2</name><pose>1.18 0.45 0.436602540378 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_3</name><pose>1.18 0.55 0.436602540378 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l2_4</name><pose>1.18 0.65 0.436602540378 0 0 0</pose></include>
 
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_1</name><pose>1.875 0.25 0.473205080757 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_2</name><pose>1.875 0.35 0.473205080757 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_3</name><pose>1.875 0.45 0.473205080757 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_4</name><pose>1.875 0.55 0.473205080757 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_5</name><pose>1.875 0.65 0.473205080757 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_6</name><pose>1.875 0.75 0.473205080757 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_1</name><pose>1.18 0.40 0.523205080757 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_2</name><pose>1.18 0.50 0.523205080757 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l3_3</name><pose>1.18 0.60 0.523205080757 0 0 0</pose></include>
 
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l4_1</name><pose>1.875 0.30 0.559807621135 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l4_2</name><pose>1.875 0.40 0.559807621135 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l4_3</name><pose>1.875 0.50 0.559807621135 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l4_4</name><pose>1.875 0.60 0.559807621135 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l4_5</name><pose>1.875 0.70 0.559807621135 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l4_1</name><pose>1.18 0.45 0.609807621135 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l4_2</name><pose>1.18 0.55 0.609807621135 0 0 0</pose></include>
 
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l5_1</name><pose>1.875 0.35 0.646410161514 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l5_2</name><pose>1.875 0.45 0.646410161514 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l5_3</name><pose>1.875 0.55 0.646410161514 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l5_4</name><pose>1.875 0.65 0.646410161514 0 0 0</pose></include>
-
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l6_1</name><pose>1.875 0.40 0.733012701892 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l6_2</name><pose>1.875 0.50 0.733012701892 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l6_3</name><pose>1.875 0.60 0.733012701892 0 0 0</pose></include>
-
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l7_1</name><pose>1.875 0.45 0.819615242271 0 0 0</pose></include>
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l7_2</name><pose>1.875 0.55 0.819615242271 0 0 0</pose></include>
-
-    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l8_1</name><pose>1.875 0.50 0.906217782649 0 0 0</pose></include>
+    <include><uri>model://stage1_stoneware_cylinder</uri><name>stoneware_l5_1</name><pose>1.18 0.50 0.696410161514 0 0 0</pose></include>
   </world>
 </sdf>
