@@ -12,6 +12,7 @@ install(
   PROGRAMS
     scripts/publish_stage1_planning_scene.py
     scripts/stage1_pick_place.py
+    scripts/stage1_pick_place_test.py
     scripts/stage1_suction_controller.py
     scripts/validate_stage1.py
   DESTINATION lib/${PROJECT_NAME}
