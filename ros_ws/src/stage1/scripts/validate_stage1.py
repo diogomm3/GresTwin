@@ -273,6 +273,51 @@ def main():
     )
     for axis, expected in enumerate(config["table"]["size"]):
         require_close(table_dimensions[axis], expected, f"table dimension axis {axis}")
+
+    pedestal_model = ET.parse(
+        package_root / "models" / "stage1_robot_pedestal" / "model.sdf"
+    ).getroot()
+    pedestal_pose = vector(
+        models["stage1_robot_pedestal"].findtext("pose"), 6, "pedestal pose"
+    )
+    for axis, expected in enumerate(config["robot_pedestal"]["pose"]):
+        require_close(pedestal_pose[axis], expected, f"pedestal world pose axis {axis}")
+    pedestal_dimensions = collision_extents(
+        package_root / "models" / "stage1_robot_pedestal" / "model.sdf"
+    )
+    for axis, expected in enumerate(config["robot_pedestal"]["size"]):
+        require_close(
+            pedestal_dimensions[axis], expected, f"pedestal dimension axis {axis}"
+        )
+    if min(pedestal_dimensions[:2]) < config["robot"]["base_diameter"]:
+        fail("Robot pedestal footprint is smaller than the UR5e base collision mesh")
+
+    robot_base_pose = config["robot"]["base_pose"]
+    for axis in range(2):
+        require_close(
+            robot_base_pose[axis],
+            pedestal_pose[axis],
+            f"robot base/pedestal axis {axis}",
+        )
+    pedestal_top = pedestal_pose[2] + pedestal_dimensions[2]
+    require_close(robot_base_pose[2], pedestal_top, "robot base on pedestal top")
+    require_close(pedestal_top, table_top, "pedestal/tabletop height")
+
+    table_right = table_pose[0] + table_dimensions[0] / 2
+    pedestal_left = pedestal_pose[0] - pedestal_dimensions[0] / 2
+    pedestal_right = pedestal_pose[0] + pedestal_dimensions[0] / 2
+    pallet_left = pallet_pose[0] - pallet_dimensions[0] / 2
+    require_close(
+        pedestal_left - table_right,
+        config["robot_pedestal"]["clearance_to_table"],
+        "table/pedestal clearance",
+    )
+    require_close(
+        pallet_left - pedestal_right,
+        config["robot_pedestal"]["clearance_to_pallet"],
+        "pedestal/pallet clearance",
+    )
+
     for pallet_name, pallet_bounds in collision_bounds(
         pallet_model, pallet_pose, "pallet"
     ):
@@ -341,9 +386,9 @@ def main():
     pallet_half_width = config["pallet"]["size"][1] / 2
     for offset in barrier_config["center_y_offsets"]:
         require_close(
-            abs(offset) + barrier_thickness / 2,
+            abs(offset) - barrier_thickness / 2,
             pallet_half_width,
-            "side barrier outer face / pallet edge",
+            "side barrier inner face / pallet edge",
         )
         require_close(
             barrier_config["center_z"] + barrier_height / 2,
@@ -421,21 +466,26 @@ def main():
             if contacts != 2:
                 fail(f"Level {level} cylinder at y={pose[1]} has {contacts} supports, expected 2")
 
-    if config["cylinder"]["level_counts_bottom_up"] != [8, 7, 6, 5, 4, 3, 2, 1]:
-        fail("Pyramid counts no longer match the required 8/7/6/5/4/3/2/1 arrangement")
-    if sum(counts) != 36:
-        fail("Initial cylinder count is not 36")
+    if expected_counts != [5, 4, 3, 2, 1]:
+        fail("Pyramid counts must match the required 5/4/3/2/1 arrangement")
+    if sum(counts) != 15:
+        fail("Initial cylinder count is not 15")
     target = config["table"]["target_region"]
-    target_x_limit = abs(target["center"][0]) + (
+    robot_shoulder = (
+        config["robot"]["base_pose"][0],
+        config["robot"]["base_pose"][1],
+        config["robot"]["base_pose"][2] + config["robot"]["shoulder_height"],
+    )
+    target_x_limit = abs(target["center"][0] - robot_shoulder[0]) + (
         target["size"][0] - config["cylinder"]["length"]
     ) / 2
-    target_y_limit = abs(target["center"][1]) + (
+    target_y_limit = abs(target["center"][1] - robot_shoulder[1]) + (
         target["size"][1] - config["cylinder"]["diameter"]
     ) / 2
     target_distance = math.sqrt(
         target_x_limit**2
         + target_y_limit**2
-        + (target["cylinder_center_z"] - config["robot"]["shoulder_height"]) ** 2
+        + (target["cylinder_center_z"] - robot_shoulder[2]) ** 2
     )
     top_level_center_z = (
         bottom_z
@@ -443,18 +493,20 @@ def main():
     )
     pickup_distance = math.dist(
         (pallet_x, pallet_y, top_level_center_z),
-        (0.0, 0.0, config["robot"]["shoulder_height"]),
+        robot_shoulder,
     )
     side_approach_distance = math.dist(
         (pallet_x, pallet_y - diameter / 2, top_level_center_z),
-        (0.0, 0.0, config["robot"]["shoulder_height"]),
+        robot_shoulder,
     )
     if target_distance > config["robot"]["nominal_reach"]:
         fail("The target-region envelope lies beyond nominal UR5e reach")
+    if pickup_distance > config["robot"]["nominal_reach"]:
+        fail("The top-cylinder center lies beyond nominal UR5e reach")
 
-    print("PASS: pallet collision bounds are 1.0 x 0.85 x 0.25 m")
-    print("PASS: two fixed 1.0 x 0.02 x 0.40 m side barriers fit the pallet")
-    print("PASS: 36 cylinders, 0.90 m x 0.10 m, in 8/7/6/5/4/3/2/1 supported levels")
+    print("PASS: pallet collision bounds are 0.8 x 0.5 x 0.3 m")
+    print("PASS: two fixed 0.8 x 0.02 x 0.40 m side barriers are tangent to the pallet edges")
+    print("PASS: 15 cylinders, 0.70 m x 0.10 m, in 5/4/3/2/1 supported levels")
     print("PASS: cylinder collision, mass, inertia, friction and restitution are configured")
     print("PASS: stack has no overlaps or pallet/barrier penetrations; each upper cylinder has two supports")
     print(
@@ -463,11 +515,21 @@ def main():
     )
     print(
         f"PASS: pallet and table collision geometries do not overlap; "
-        f"side-edge clearance is "
-        f"{(table_pose[1] - config['table']['size'][1] / 2) - (pallet_pose[1] + config['pallet']['size'][1] / 2):.3f} m"
+        f"X-axis gap is "
+        f"{pallet_left - (table_pose[0] + table_dimensions[0] / 2):.3f} m"
+    )
+    print(
+        f"PASS: pedestal clearances are "
+        f"{config['robot_pedestal']['clearance_to_table']:.3f} m to the table and "
+        f"{config['robot_pedestal']['clearance_to_pallet']:.3f} m to the pallet"
     )
     print(
         f"PASS: target envelope is within {config['robot']['nominal_reach']:.2f} m nominal reach"
+    )
+    print(
+        f"PASS: shoulder-to-top-cylinder-center distance is {pickup_distance:.3f} m; "
+        f"shoulder-to-table-target-center distance is "
+        f"{math.dist(robot_shoulder, (target['center'][0], target['center'][1], target['cylinder_center_z'])):.3f} m"
     )
     if max(pickup_distance, side_approach_distance) > config["robot"]["nominal_reach"]:
         print(
