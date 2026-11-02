@@ -31,12 +31,24 @@ def _build_stationary_robot_description():
     spec.loader.exec_module(module)
 
     description = ET.fromstring(
-        module._build_robot_description(
-            sim_share,
-            stage1_end_effector=True,
-            enable_detachable_joint=False,
-        )
+        module._build_robot_description(sim_share)
     )
+    for gazebo in description.findall("gazebo"):
+        for plugin in list(gazebo.findall("plugin")):
+            if plugin.get("name") == "gz::sim::systems::DetachableJoint":
+                gazebo.remove(plugin)
+
+    stage1_module_path = Path(__file__).with_name("stage1_robot_description.py")
+    stage1_spec = importlib.util.spec_from_file_location(
+        "stage1_robot_description", stage1_module_path
+    )
+    if stage1_spec is None or stage1_spec.loader is None:
+        raise RuntimeError(
+            f"Unable to load Stage 1 robot helper from {stage1_module_path}"
+        )
+    stage1_module = importlib.util.module_from_spec(stage1_spec)
+    stage1_spec.loader.exec_module(stage1_module)
+    stage1_module.add_stage1_suction_attachment(description)
     control_plugin = next(
         (
             plugin
