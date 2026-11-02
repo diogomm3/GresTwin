@@ -89,7 +89,13 @@ def generate_launch_description():
             "robot_description": robot_description,
             "use_sim_time": True,
             "allow_trajectory_execution": ParameterValue(
-                LaunchConfiguration("run_first_pick_place"),
+                IfElseSubstitution(
+                    LaunchConfiguration("run_first_pick_place"),
+                    if_value="true",
+                    else_value=LaunchConfiguration(
+                        "run_first_pick_place_test"
+                    ),
+                ),
                 value_type=bool,
             ),
             "publish_robot_description_semantic": True,
@@ -212,6 +218,28 @@ def generate_launch_description():
             }
         ],
     )
+    pick_place_test = Node(
+        package="stage1_stoneware_sim",
+        executable="stage1_pick_place_test.py",
+        name="stage1_pick_place_test",
+        output="screen",
+        emulate_tty=True,
+        parameters=[
+            {
+                "source_name": f"stoneware_l{level_count}_1",
+                "source_support_names": source_support_names,
+                "source_center": source_center,
+                "table_name": table["model"],
+                "table_center": [
+                    table_target["center"][0],
+                    table_target["center"][1],
+                    table_target["cylinder_center_z"],
+                ],
+                "cylinder_diameter": cylinder["diameter"],
+                "use_sim_time": True,
+            }
+        ],
+    )
     suction_bridge_arguments = []
     for pad in range(1, 6):
         contact_topic = (
@@ -273,6 +301,10 @@ def generate_launch_description():
                 .perform(context)
                 .lower()
                 == "true"
+                or LaunchConfiguration("run_first_pick_place_test")
+                .perform(context)
+                .lower()
+                == "true"
             ):
                 return [trajectory_controller_spawner]
             return [move_group, rviz, planning_scene_publisher]
@@ -286,15 +318,22 @@ def generate_launch_description():
         ]
 
     def start_pick_place(event, context):
-        if (
+        run_test = (
+            LaunchConfiguration("run_first_pick_place_test")
+            .perform(context)
+            .lower()
+            == "true"
+        )
+        run_single = (
             LaunchConfiguration("run_first_pick_place")
             .perform(context)
             .lower()
-            != "true"
-        ):
+            == "true"
+        )
+        if not run_test and not run_single:
             return []
         if event.returncode == 0:
-            return [pick_place_demo]
+            return [pick_place_test if run_test else pick_place_demo]
         return [Shutdown(reason="Stage 1 planning scene startup failed.")]
 
     spawn_robot = Node(
@@ -327,6 +366,14 @@ def generate_launch_description():
                 description=(
                     "Enable trajectory execution and run one top-cylinder "
                     "pick-and-place motion."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "run_first_pick_place_test",
+                default_value="false",
+                description=(
+                    "Enable trajectory execution and run the standalone "
+                    "single-cylinder pick-and-place test."
                 ),
             ),
             SetEnvironmentVariable(
@@ -385,7 +432,13 @@ def generate_launch_description():
             ),
             LogInfo(
                 msg=IfElseSubstitution(
-                    LaunchConfiguration("run_first_pick_place"),
+                    IfElseSubstitution(
+                        LaunchConfiguration("run_first_pick_place"),
+                        if_value="true",
+                        else_value=LaunchConfiguration(
+                            "run_first_pick_place_test"
+                        ),
+                    ),
                     if_value=(
                         "Stage 1: first pick-and-place motion enabled; "
                         "scaled trajectory controller will execute the arm path."
