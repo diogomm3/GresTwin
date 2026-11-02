@@ -9,7 +9,16 @@ install(
 )
 
 install(
-  PROGRAMS scripts/validate_stage1.py
+  PROGRAMS
+    scripts/publish_stage1_planning_scene.py
+    scripts/stage1_pick_place.py
+    scripts/stage1_suction_controller.py
+    scripts/validate_stage1.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  FILES scripts/stage1_planning_scene_utils.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
