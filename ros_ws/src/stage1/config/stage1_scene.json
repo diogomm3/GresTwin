@@ -2,41 +2,42 @@
   "world": "stage1_raw_stoneware",
   "robot": {
     "model": "ur",
-    "base_pose": [0.875, 0.5, 0.8],
+    "base_pose": [0.5, 0.5, 0.55],
+    "base_diameter": 0.151,
     "shoulder_height": 0.163,
     "nominal_reach": 0.85
   },
   "robot_pedestal": {
     "model": "stage1_robot_pedestal",
-    "pose": [0.875, 0.5, 0.0],
-    "size": [0.6, 0.6, 0.8],
-    "clearance_to_table": 0.2,
+    "pose": [0.5, 0.5, 0.0],
+    "size": [0.16, 0.16, 0.55],
+    "clearance_to_table": 0.045,
     "clearance_to_pallet": 0.2
   },
   "pallet": {
     "model": "stage1_pallet",
-    "pose": [1.875, 0.5, 0.0],
-    "size": [1.0, 0.85, 0.25],
+    "pose": [1.18, 0.5, 0.0],
+    "size": [0.8, 0.5, 0.3],
     "top_surface_friction": 1.0,
     "top_surface_rolling_friction": 0.05,
     "top_surface_restitution": 0.02
   },
   "side_barriers": {
-    "size": [1.0, 0.02, 0.4],
-    "center_y_offsets": [-0.415, 0.415],
+    "size": [0.8, 0.02, 0.4],
+    "center_y_offsets": [-0.26, 0.26],
     "center_z": 0.2,
-    "clearance_to_outer_cylinders": 0.005
+    "clearance_to_outer_cylinders": 0.0
   },
   "cylinder": {
     "model": "stage1_stoneware_cylinder",
-    "length": 0.9,
+    "length": 0.7,
     "diameter": 0.1,
-    "density_assumption": 2000.0,
-    "mass": 14.137166941,
+    "density_assumption": 45.47284088339868,
+    "mass": 0.25,
     "friction": 0.9,
     "rolling_friction": 0.05,
     "restitution": 0.02,
-    "level_counts_bottom_up": [8, 7, 6, 5, 4, 3, 2, 1],
+    "level_counts_bottom_up": [5, 4, 3, 2, 1],
     "vertical_pitch": 0.086602540378
   },
   "table": {
