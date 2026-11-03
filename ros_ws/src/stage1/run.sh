@@ -22,6 +22,7 @@ if [[ -z "${GZ_PARTITION:-}" ]]; then
 fi
 printf 'Using GZ_PARTITION=%s\n' "$GZ_PARTITION"
 cd "$ros_ws_dir"
+rosdep install --from-paths src --ignore-src --rosdistro jazzy -y
 colcon build --symlink-install --packages-up-to stage1_stoneware_sim
 source install/setup.bash
 exec ros2 launch stage1_stoneware_sim stage1.launch.py "$@"

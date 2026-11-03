@@ -184,7 +184,9 @@ ros2 launch stage1_stoneware_sim stage1.launch.py gazebo_gui:=false
 ```
 
 To build Stage 1 and start its headless launch in one step, run this script
-from any directory:
+from any directory. It installs any missing dependencies declared by the
+workspace with `rosdep` before building; `rosdep` may prompt for your sudo
+password:
 
 ```bash
 ./ros_ws/src/stage1/run.sh
