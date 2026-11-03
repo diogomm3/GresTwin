@@ -18,6 +18,18 @@ Use ROS Jazzy binary packages for the selected components, with Gazebo Harmonic 
 
 ## Install ROS system packages
 
+On a fresh Ubuntu 24.04 system, run the repository installer from the root:
+
+```bash
+./install.sh
+```
+
+It configures the ROS apt source, installs ROS 2 Jazzy, MoveIt, Gazebo Harmonic
+integration, and development tools, then installs declared workspace
+dependencies and builds `ros_ws`. The installer is limited to Ubuntu 24.04.
+
+To perform the system-package setup manually, follow the steps below.
+
 On Ubuntu 24.04, follow the [official ROS 2 Jazzy Ubuntu binary-package instructions](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html), including configuring the ROS apt repository. Ensure Ubuntu's `universe`, `noble-updates`, and `noble-backports` apt suites are enabled, as well as a UTF-8 locale. After configuring the ROS repository, run `sudo apt update` before installing packages. The [ROS/Gazebo compatibility guidance](https://gazebosim.org/docs/harmonic/ros_installation/) recommends Jazzy with Harmonic; do not add a separate OSRF Gazebo apt repository.
 
 Install the selected ROS packages and development tools:
