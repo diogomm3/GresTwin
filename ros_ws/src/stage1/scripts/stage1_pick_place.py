@@ -20,9 +20,9 @@ from moveit_msgs.msg import (
 )
 from moveit_msgs.srv import (
     ApplyPlanningScene,
-    GetPositionFK,
     GetMotionPlan,
     GetPlanningScene,
+    GetPositionFK,
     GetPositionIK,
 )
 from rclpy.action import ActionClient
@@ -30,12 +30,12 @@ from rclpy.duration import Duration
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.time import Time
+from ros_gz_interfaces.msg import Entity
+from ros_gz_interfaces.srv import DeleteEntity
 from sensor_msgs.msg import JointState
+from stage1_planning_scene_utils import set_allowed_collision_pairs
 from std_msgs.msg import Bool
 from tf2_ros import Buffer, TransformException, TransformListener
-
-from stage1_planning_scene_utils import set_allowed_collision_pairs
-
 
 JOINTS = (
     "shoulder_pan_joint",
@@ -45,6 +45,19 @@ JOINTS = (
     "wrist_2_joint",
     "wrist_3_joint",
 )
+JOINT_LIMIT_MARGIN = 0.15
+JOINT_POSITION_LIMITS = {
+    name: (
+        -math.pi + JOINT_LIMIT_MARGIN,
+        math.pi - JOINT_LIMIT_MARGIN,
+    )
+    if name == "elbow_joint"
+    else (
+        -math.tau + JOINT_LIMIT_MARGIN,
+        math.tau - JOINT_LIMIT_MARGIN,
+    )
+    for name in JOINTS
+}
 GROUP = "ur_manipulator"
 WORLD_FRAME = "world"
 END_EFFECTOR_LINK = "tool0"
@@ -65,36 +78,67 @@ PLANNING_SCENE_COMPONENTS = (
 class Stage1PickPlaceDemo(Node):
     def __init__(self):
         super().__init__("stage1_pick_place_demo")
-        self.declare_parameter("source_name", "stoneware_l5_1")
-        self.declare_parameter("source_support_names", [""])
-        self.declare_parameter("source_center", [1.18, 0.5, 0.696410161514])
+        self.declare_parameter("world_name", "stage1_raw_stoneware")
+        self.declare_parameter("pallet_pose", [1.18, 0.5, 0.0])
+        self.declare_parameter("pallet_height", 0.3)
+        self.declare_parameter("level_counts_bottom_up", [5, 4, 3, 2, 1])
+        self.declare_parameter("vertical_pitch", 0.086602540378)
         self.declare_parameter("table_name", "stage1_placement_table")
         self.declare_parameter("table_center", [-0.15, 0.5, 0.6])
         self.declare_parameter("cylinder_diameter", 0.1)
+        self.declare_parameter("removal_delay", 5.0)
+        self.declare_parameter("max_cylinders", 15)
 
-        self._source_name = self.get_parameter("source_name").value
-        self._source_support_names = tuple(
-            name
-            for name in self.get_parameter("source_support_names").value
-            if name
+        self._world_name = self.get_parameter("world_name").value
+        self._pallet_pose = tuple(self.get_parameter("pallet_pose").value)
+        self._pallet_height = float(self.get_parameter("pallet_height").value)
+        self._level_counts_bottom_up = tuple(
+            self.get_parameter("level_counts_bottom_up").value
         )
-        self._source_center = tuple(
-            self.get_parameter("source_center").value
+        self._vertical_pitch = float(
+            self.get_parameter("vertical_pitch").value
         )
         self._table_name = self.get_parameter("table_name").value
         self._table_center = tuple(self.get_parameter("table_center").value)
         self._cylinder_diameter = float(
             self.get_parameter("cylinder_diameter").value
         )
+        self._removal_delay = float(self.get_parameter("removal_delay").value)
+        self._max_cylinders = self.get_parameter("max_cylinders").value
         if (
-            len(self._source_center) != 3
+            len(self._pallet_pose) != 3
             or len(self._table_center) != 3
             or not all(
                 math.isfinite(value)
-                for value in (*self._source_center, *self._table_center)
+                for value in (
+                    *self._pallet_pose,
+                    *self._table_center,
+                    self._pallet_height,
+                    self._vertical_pitch,
+                    self._cylinder_diameter,
+                    self._removal_delay,
+                )
             )
+            or not self._level_counts_bottom_up
+            or any(
+                not isinstance(count, int) or count <= 0
+                for count in self._level_counts_bottom_up
+            )
+            or any(
+                upper_count != lower_count - 1
+                for lower_count, upper_count in zip(
+                    self._level_counts_bottom_up,
+                    self._level_counts_bottom_up[1:],
+                )
+            )
+            or self._pallet_height <= 0.0
+            or self._vertical_pitch <= 0.0
             or not math.isfinite(self._cylinder_diameter)
             or self._cylinder_diameter <= 0.0
+            or self._removal_delay < 0.0
+            or not isinstance(self._max_cylinders, int)
+            or self._max_cylinders <= 0
+            or self._max_cylinders > sum(self._level_counts_bottom_up)
         ):
             raise ValueError("Stage 1 pick-and-place target configuration is invalid")
 
@@ -102,7 +146,12 @@ class Stage1PickPlaceDemo(Node):
         self._joint_velocities = {}
         self._suction_enabled = None
         self._suction_attached = None
+        self._source_name = None
+        self._source_touching_names = ()
+        self._source_center = ()
         self._source_collision_object = None
+        self._pending_removals = set()
+        self._removal_errors = {}
 
         self._executor = SingleThreadedExecutor()
         self._executor.add_node(self)
@@ -120,6 +169,9 @@ class Stage1PickPlaceDemo(Node):
         )
         self._suction_command_publisher = self.create_publisher(
             Bool, "/stage1/suction/command", 10
+        )
+        self._delete_entity_client = self.create_client(
+            DeleteEntity, f"/world/{self._world_name}/remove"
         )
 
         self._ik_client = self.create_client(GetPositionIK, "/compute_ik")
@@ -151,12 +203,21 @@ class Stage1PickPlaceDemo(Node):
     def _wait_until(self, predicate, timeout, description):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            self._raise_removal_errors()
             if predicate():
                 return
             self._executor.spin_once(
                 timeout_sec=min(0.1, max(0.0, deadline - time.monotonic()))
             )
+        self._raise_removal_errors()
         raise TimeoutError(f"Timed out waiting for {description}")
+
+    def _raise_removal_errors(self):
+        if self._removal_errors:
+            cylinder_name, error = next(iter(self._removal_errors.items()))
+            raise RuntimeError(
+                f"Could not remove placed cylinder {cylinder_name}: {error}"
+            )
 
     def _wait_for_services(self):
         services = (
@@ -165,6 +226,10 @@ class Stage1PickPlaceDemo(Node):
             (self._plan_client, "/plan_kinematic_path"),
             (self._scene_client, "/apply_planning_scene"),
             (self._get_scene_client, "/get_planning_scene"),
+            (
+                self._delete_entity_client,
+                f"/world/{self._world_name}/remove",
+            ),
         )
         deadline = time.monotonic() + 90.0
         pending = [name for _, name in services]
@@ -310,6 +375,32 @@ class Stage1PickPlaceDemo(Node):
         pose.orientation.w = 0.0
         return pose
 
+    @staticmethod
+    def _nearest_valid_ik_target(solution, seed, label):
+        target = {}
+        for name in JOINTS:
+            lower_limit, upper_limit = JOINT_POSITION_LIMITS[name]
+            first_turn = math.ceil(
+                (lower_limit - solution[name]) / math.tau
+            )
+            last_turn = math.floor(
+                (upper_limit - solution[name]) / math.tau
+            )
+            candidates = [
+                solution[name] + math.tau * turns
+                for turns in range(first_turn, last_turn + 1)
+            ]
+            if not candidates:
+                raise RuntimeError(
+                    f"MoveIt returned an out-of-range IK solution for "
+                    f"{label} on {name}: {solution[name]}"
+                )
+            target[name] = min(
+                candidates,
+                key=lambda angle: abs(seed[name] - angle),
+            )
+        return target
+
     def _solve_ik(self, x, y, z, label, seed, avoid_collisions=True):
         request = GetPositionIK.Request()
         ik_request = request.ik_request
@@ -408,11 +499,7 @@ class Stage1PickPlaceDemo(Node):
             f"Verified IK/FK {label}: {position_error:.4f} m, "
             f"{math.degrees(orientation_error):.2f} degrees"
         )
-        target = {
-            name: solution[name]
-            + math.tau * round((seed[name] - solution[name]) / math.tau)
-            for name in JOINTS
-        }
+        target = self._nearest_valid_ik_target(solution, seed, label)
         self.get_logger().info(f"IK {label}: {target}")
         return target
 
@@ -636,14 +723,14 @@ class Stage1PickPlaceDemo(Node):
         scene.robot_state.is_diff = True
         scene.robot_state.attached_collision_objects = [attached]
         current_scene = self._get_scene()
-        support_pairs = [
-            (self._source_name, support_name, True)
-            for support_name in self._source_support_names
+        touching_pairs = [
+            (self._source_name, touching_name, True)
+            for touching_name in self._source_touching_names
         ]
         allowed_pairs = [
             (SUCTION_LINK, self._source_name, True),
             (self._source_name, self._table_name, False),
-            *support_pairs,
+            *touching_pairs,
         ]
         scene.allowed_collision_matrix = set_allowed_collision_pairs(
             copy.deepcopy(current_scene.allowed_collision_matrix),
@@ -678,6 +765,89 @@ class Stage1PickPlaceDemo(Node):
             "placing the cylinder in the planning scene",
             world_present=(self._source_name,),
             attached_absent=(self._source_name,),
+        )
+
+    def _remove_collision_object(self, cylinder_name):
+        removed = CollisionObject()
+        removed.id = cylinder_name
+        removed.operation = CollisionObject.REMOVE
+        scene = PlanningScene()
+        scene.world.collision_objects = [removed]
+        self._apply_scene(
+            scene,
+            f"removing consumed cylinder {cylinder_name} from the planning scene",
+            world_absent=(cylinder_name,),
+            attached_absent=(cylinder_name,),
+        )
+
+    def _schedule_cylinder_removal(self, cylinder_name):
+        self._pending_removals.add(cylinder_name)
+        timer = None
+
+        def remove_after_delay():
+            timer.cancel()
+            self.destroy_timer(timer)
+            request = DeleteEntity.Request()
+            request.entity.name = cylinder_name
+            request.entity.type = Entity.MODEL
+            future = self._delete_entity_client.call_async(request)
+            future.add_done_callback(
+                lambda result: self._on_gazebo_cylinder_removed(
+                    cylinder_name, result
+                )
+            )
+
+        timer = self.create_timer(
+            max(self._removal_delay, 0.001),
+            remove_after_delay,
+        )
+        self.get_logger().info(
+            f"Scheduled removal of {cylinder_name} in "
+            f"{self._removal_delay:g} simulated seconds"
+        )
+
+    def _on_gazebo_cylinder_removed(self, cylinder_name, future):
+        try:
+            response = future.result()
+        except Exception as error:
+            self._removal_errors[cylinder_name] = str(error)
+            return
+        if response is None or not response.success:
+            self._removal_errors[cylinder_name] = (
+                "Gazebo DeleteEntity returned success=false"
+            )
+            return
+
+        removed = CollisionObject()
+        removed.id = cylinder_name
+        removed.operation = CollisionObject.REMOVE
+        scene = PlanningScene()
+        scene.is_diff = True
+        scene.world.collision_objects = [removed]
+        scene_future = self._scene_client.call_async(
+            ApplyPlanningScene.Request(scene=scene)
+        )
+        scene_future.add_done_callback(
+            lambda result: self._on_planning_scene_cylinder_removed(
+                cylinder_name, result
+            )
+        )
+
+    def _on_planning_scene_cylinder_removed(self, cylinder_name, future):
+        try:
+            response = future.result()
+        except Exception as error:
+            self._removal_errors[cylinder_name] = str(error)
+            return
+        if response is None or not response.success:
+            self._removal_errors[cylinder_name] = (
+                "MoveIt ApplyPlanningScene returned success=false"
+            )
+            return
+        self._pending_removals.discard(cylinder_name)
+        self.get_logger().info(
+            f"Removed {cylinder_name} from Gazebo and MoveIt after "
+            f"{self._removal_delay:g} simulated seconds"
         )
 
     def _lookup_suction_transform(self):
@@ -718,65 +888,61 @@ class Stage1PickPlaceDemo(Node):
             "Gazebo to process the suction attachment change",
         )
 
-    def run_demo(self):
-        self.get_logger().info(
-            "Starting the first Stage 1 pick-and-place motion"
-        )
-        self._wait_for_services()
-        self._wait_until(
-            lambda: set(JOINTS).issubset(self._joint_positions),
-            45.0,
-            "UR5e joint state",
-        )
-        self._wait_until(
-            lambda: (
-                self._source_name
-                in {
-                    item.id
-                    for item in self._get_scene().world.collision_objects
-                }
-            ),
-            30.0,
-            f"{self._source_name} in the planning scene",
-        )
-        scene = self._get_scene()
-        world_objects = {
-            item.id: item for item in scene.world.collision_objects
-        }
-        if self._table_name not in world_objects:
-            raise RuntimeError(
-                f"Placement table {self._table_name} is missing from MoveIt"
-            )
-        self._source_collision_object = copy.deepcopy(
-            world_objects[self._source_name]
+    def _cylinders_top_down(self):
+        cylinders = []
+        for level in range(len(self._level_counts_bottom_up), 0, -1):
+            count = self._level_counts_bottom_up[level - 1]
+            for index in range(1, count + 1):
+                touching_names = []
+                if level > 1:
+                    touching_names.extend(
+                        (
+                            f"stoneware_l{level - 1}_{index}",
+                            f"stoneware_l{level - 1}_{index + 1}",
+                        )
+                    )
+                if index < count:
+                    touching_names.append(f"stoneware_l{level}_{index + 1}")
+                center = (
+                    self._pallet_pose[0],
+                    self._pallet_pose[1]
+                    + (index - (count + 1) / 2.0) * self._cylinder_diameter,
+                    self._pallet_pose[2]
+                    + self._pallet_height
+                    + self._cylinder_diameter / 2.0
+                    + self._vertical_pitch * (level - 1),
+                )
+                cylinders.append(
+                    (
+                        f"stoneware_l{level}_{index}",
+                        center,
+                        tuple(touching_names),
+                    )
+                )
+        return cylinders
+
+    def _validate_source_object(self, collision_object):
+        actual_center = (
+            collision_object.pose.position.x,
+            collision_object.pose.position.y,
+            collision_object.pose.position.z,
         )
         if (
-            self._source_collision_object.header.frame_id != WORLD_FRAME
+            collision_object.header.frame_id != WORLD_FRAME
             or any(
                 abs(actual - expected) > 0.02
                 for actual, expected in zip(
-                    (
-                        self._source_collision_object.pose.position.x,
-                        self._source_collision_object.pose.position.y,
-                        self._source_collision_object.pose.position.z,
-                    ),
+                    actual_center,
                     self._source_center,
                 )
             )
         ):
             raise RuntimeError(
-                f"MoveIt source-cylinder pose does not match configured center "
-                f"{self._source_center}"
-            )
-        if any(
-            item.object.id == self._source_name
-            for item in scene.robot_state.attached_collision_objects
-        ):
-            raise RuntimeError(
-                f"{self._source_name} is already attached in MoveIt"
+                f"MoveIt pose for {self._source_name} does not match "
+                f"configured center {self._source_center}: {actual_center}"
             )
 
-        initial_positions = self._current_positions()
+    def _pick_and_place_cylinder(self):
         contact_z = (
             self._source_center[2]
             + self._cylinder_diameter / 2.0
@@ -790,20 +956,26 @@ class Stage1PickPlaceDemo(Node):
             self._source_center[0],
             self._source_center[1],
             contact_z + PICKUP_APPROACH_CLEARANCE,
-            "pickup approach",
-            initial_positions,
+            f"{self._source_name} pickup approach",
+            self._current_positions(),
         )
         contact_target = self._solve_ik(
             self._source_center[0],
             self._source_center[1],
             contact_z,
-            "pickup contact",
+            f"{self._source_name} pickup contact",
             approach_target,
         )
-        self._move_joints(approach_target, "pickup approach")
-        self._move_joints(contact_target, "pickup contact")
+        self._move_joints(
+            approach_target, f"{self._source_name} pickup approach"
+        )
+        self._move_joints(
+            contact_target, f"{self._source_name} pickup contact"
+        )
 
-        self.get_logger().info("Enabling suction at the top-layer cylinder")
+        self.get_logger().info(
+            f"Enabling suction at {self._source_name}"
+        )
         try:
             self._command_suction(True)
         except TimeoutError:
@@ -818,14 +990,14 @@ class Stage1PickPlaceDemo(Node):
             self._source_center[0],
             self._source_center[1],
             contact_z + LIFT_CLEARANCE,
-            "pickup lift",
+            f"{self._source_name} pickup lift",
             contact_target,
         )
-        self._move_joints(lift_target, "pickup lift")
+        self._move_joints(lift_target, f"{self._source_name} pickup lift")
         self._update_allowed_collisions(
             [
-                (self._source_name, support_name, False)
-                for support_name in self._source_support_names
+                (self._source_name, touching_name, False)
+                for touching_name in self._source_touching_names
             ]
         )
 
@@ -835,23 +1007,37 @@ class Stage1PickPlaceDemo(Node):
         table_side_target = dict(lift_target)
         table_side_target["shoulder_pan_joint"] -= math.pi
         table_side_target["wrist_3_joint"] += math.pi
-        self._move_joints(table_side_target, "rotate toward table")
+        table_side_target = self._nearest_valid_ik_target(
+            table_side_target,
+            lift_target,
+            f"{self._source_name} rotate toward table",
+        )
+        self._move_joints(
+            table_side_target,
+            f"{self._source_name} rotate toward table",
+        )
         table_approach_target = self._solve_ik(
             self._table_center[0],
             self._table_center[1],
             place_tool_z + PLACE_APPROACH_CLEARANCE,
-            "table approach",
+            f"{self._source_name} table approach",
             table_side_target,
         )
-        self._move_joints(table_approach_target, "transfer to table")
+        self._move_joints(
+            table_approach_target,
+            f"{self._source_name} transfer to table",
+        )
         table_descent_target = self._solve_ik(
             self._table_center[0],
             self._table_center[1],
             place_tool_z + PLACE_APPROACH_CLEARANCE / 2.0,
-            "table descent",
+            f"{self._source_name} table descent",
             table_approach_target,
         )
-        self._move_joints(table_descent_target, "table descent")
+        self._move_joints(
+            table_descent_target,
+            f"{self._source_name} table descent",
+        )
         self._update_allowed_collisions(
             [(self._source_name, self._table_name, True)]
         )
@@ -859,32 +1045,116 @@ class Stage1PickPlaceDemo(Node):
             self._table_center[0],
             self._table_center[1],
             place_tool_z + PLACE_RELEASE_CLEARANCE,
-            "table release hover",
+            f"{self._source_name} table release hover",
             table_descent_target,
         )
-        self._move_joints(table_release_target, "position over table to release")
+        self._move_joints(
+            table_release_target,
+            f"{self._source_name} position over table to release",
+        )
 
-        self.get_logger().info("Releasing the cylinder on the table")
+        self.get_logger().info(
+            f"Releasing {self._source_name} on the table"
+        )
         self._command_suction(False)
         self._release_collision_object()
+        self._schedule_cylinder_removal(self._source_name)
 
         retreat_target = self._solve_ik(
             self._table_center[0],
             self._table_center[1],
             place_tool_z + PLACE_APPROACH_CLEARANCE,
-            "table retreat",
+            f"{self._source_name} table retreat",
             table_release_target,
         )
-        self._move_joints(retreat_target, "retreat from table")
+        self._move_joints(
+            retreat_target,
+            f"{self._source_name} retreat from table",
+        )
         self._update_allowed_collisions(
             [
                 (SUCTION_LINK, self._source_name, False),
                 (self._source_name, self._table_name, False),
             ]
         )
-        self._move_joints(initial_positions, "return to initial position")
+
+    def run_demo(self):
+        cylinders = self._cylinders_top_down()[: self._max_cylinders]
+        cylinder_names = {name for name, _, _ in cylinders}
         self.get_logger().info(
-            "First Stage 1 pick-and-place motion completed successfully"
+            f"Starting top-down Stage 1 pick-and-place for "
+            f"{len(cylinders)} cylinders"
+        )
+        self._wait_for_services()
+        self._wait_until(
+            lambda: set(JOINTS).issubset(self._joint_positions),
+            45.0,
+            "UR5e joint state",
+        )
+        self._wait_until(
+            lambda: cylinder_names.issubset(
+                {
+                    item.id
+                    for item in self._get_scene().world.collision_objects
+                }
+            ),
+            30.0,
+            "all stack cylinders in the planning scene",
+        )
+        self._wait_until(
+            lambda: self.get_clock().now().nanoseconds > 0,
+            30.0,
+            "active Gazebo simulation clock",
+        )
+        scene = self._get_scene()
+        world_objects = {
+            item.id: item for item in scene.world.collision_objects
+        }
+        if self._table_name not in world_objects:
+            raise RuntimeError(
+                f"Placement table {self._table_name} is missing from MoveIt"
+            )
+        if any(
+            item.object.id in cylinder_names
+            for item in scene.robot_state.attached_collision_objects
+        ):
+            raise RuntimeError(
+                "A Stage 1 cylinder is already attached in MoveIt"
+            )
+
+        initial_positions = self._current_positions()
+        for source_name, source_center, touching_names in cylinders:
+            self._source_name = source_name
+            self._source_center = source_center
+            self._source_touching_names = touching_names
+            scene = self._get_scene()
+            world_objects = {
+                item.id: item for item in scene.world.collision_objects
+            }
+            source_object = world_objects.get(self._source_name)
+            if source_object is None:
+                raise RuntimeError(
+                    f"{self._source_name} is missing from the MoveIt "
+                    "planning scene"
+                )
+            self._validate_source_object(source_object)
+            self._source_collision_object = copy.deepcopy(source_object)
+            self.get_logger().info(
+                f"Picking {self._source_name} at {self._source_center}; "
+                f"touching stack cylinders: "
+                f"{list(self._source_touching_names)}"
+            )
+            self._pick_and_place_cylinder()
+
+        self._move_joints(initial_positions, "return to initial position")
+        self._wait_until(
+            lambda: not self._pending_removals,
+            max(60.0, self._removal_delay * 10.0 + 30.0),
+            "all scheduled cylinder removals",
+        )
+        self.get_logger().info(
+            f"Top-down Stage 1 pick-and-place completed for "
+            f"{len(cylinders)} cylinders"
         )
 
 

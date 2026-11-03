@@ -204,9 +204,11 @@ def generate_launch_description():
         emulate_tty=True,
         parameters=[
             {
-                "source_name": f"stoneware_l{level_count}_1",
-                "source_support_names": source_support_names,
-                "source_center": source_center,
+                "world_name": scene_config["world"],
+                "pallet_pose": pallet["pose"],
+                "pallet_height": pallet["size"][2],
+                "level_counts_bottom_up": cylinder_level_counts,
+                "vertical_pitch": cylinder["vertical_pitch"],
                 "table_name": table["model"],
                 "table_center": [
                     table_target["center"][0],
@@ -214,6 +216,11 @@ def generate_launch_description():
                     table_target["cylinder_center_z"],
                 ],
                 "cylinder_diameter": cylinder["diameter"],
+                "removal_delay": 5.0,
+                "max_cylinders": ParameterValue(
+                    LaunchConfiguration("pick_place_max_cylinders"),
+                    value_type=int,
+                ),
                 "use_sim_time": True,
             }
         ],
@@ -264,6 +271,10 @@ def generate_launch_description():
     suction_bridge_arguments.append(
         "/world/stage1_raw_stoneware/material_color"
         "@ros_gz_interfaces/msg/MaterialColor]gz.msgs.MaterialColor"
+    )
+    suction_bridge_arguments.append(
+        f"/world/{scene_config['world']}/remove"
+        "@ros_gz_interfaces/srv/DeleteEntity"
     )
     suction_bridge = Node(
         package="ros_gz_bridge",
@@ -364,8 +375,8 @@ def generate_launch_description():
                 "run_first_pick_place",
                 default_value="false",
                 description=(
-                    "Enable trajectory execution and run one top-cylinder "
-                    "pick-and-place motion."
+                    "Enable trajectory execution and pick and remove every "
+                    "stack cylinder from top to bottom."
                 ),
             ),
             DeclareLaunchArgument(
@@ -374,6 +385,13 @@ def generate_launch_description():
                 description=(
                     "Enable trajectory execution and run the standalone "
                     "single-cylinder pick-and-place test."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "pick_place_max_cylinders",
+                default_value="15",
+                description=(
+                    "Maximum number of top-down cylinders to pick and place."
                 ),
             ),
             SetEnvironmentVariable(
@@ -440,8 +458,9 @@ def generate_launch_description():
                         ),
                     ),
                     if_value=(
-                        "Stage 1: first pick-and-place motion enabled; "
-                        "scaled trajectory controller will execute the arm path."
+                        "Stage 1: top-down stack pick-and-place enabled; "
+                        "placed cylinders will be removed after five "
+                        "simulated seconds."
                     ),
                     else_value=(
                         "Stage 1: MoveIt planning enabled; trajectory execution "

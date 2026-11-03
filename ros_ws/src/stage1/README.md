@@ -18,23 +18,23 @@ Implemented in this milestone:
   level counts, geometric supports, barrier clearances, and initial overlaps.
 - Gazebo contact sensors on each suction pad and stoneware cylinder.
 
-A prior version of the first top-down pick-and-place sequence completed a
-headless end-to-end test with the reduced PoC cylinder mass. The transfer now
-adds an explicit shoulder-and-wrist rotation after lifting, then plans the
-table approach from that rotated pose. All motion segments request 50% velocity
-and acceleration scaling. In the latest reported run, MoveIt failed to find a
-collision-free path for the final table-contact motion, so the sequence aborted
-before disabling suction and releasing the cylinder. The final placement now
-uses collision-aware IK and releases the cylinder from a 20 mm hover above the
-table to avoid planning a robot contact pose at the surface. The revised
-sequence completed a headless end-to-end run, including suction release,
-retreat, and return to the initial position. The carried cylinder is only
-allowed to contact the table during final placement.
-The simulated pickup is an idealized fixed attachment after pad contact, not a
-physically validated suction grasp. Cutting behavior is not implemented. The
-intended order is top-down by complete level:
-`stoneware_l5_1`, then both `stoneware_l4_*`, then all
-`stoneware_l3_*`, continuing down through the bottom level.
+A top-down pick-and-place sequence processes all 15 cylinders by complete
+level, starting at `stoneware_l5_1` and continuing down to level 1. Each
+cylinder follows the existing approach, suction pickup, straight lift, rotated
+transfer, and 20 mm table-release hover. Intended contacts with its adjacent
+same-level cylinder and two lower-level supports are allowed during pickup and
+lift. After release, the arm retreats and immediately proceeds to the next
+cylinder while a five-simulated-second timer removes the placed cylinder from
+Gazebo and MoveIt's planning scene. The arm returns to its initial position
+once, after the last pickup. All motion segments request 50% velocity and
+acceleration scaling.
+
+The suction controller clears cached pad contacts when suction changes state
+and ignores contact updates while suction is off, preventing a later pickup
+from using stale contact data. The simulated pickup remains an idealized fixed
+attachment after pad contact, not a physically validated suction grasp.
+Cutting behavior is not implemented. The full 15-cylinder sequence has not yet
+been verified in an end-to-end simulation run.
 
 The side barriers are integral to the static pallet model. Their height is
 0.40 m from the pallet bottom. Their inner faces align with the pallet's
@@ -190,6 +190,18 @@ from any directory:
 ./ros_ws/src/stage1/run.sh
 ```
 
+To run the top-down pick-and-place sequence:
+
+```bash
+./ros_ws/src/stage1/run.sh run_first_pick_place:=true
+```
+
+For a bounded run, set `pick_place_max_cylinders` (for example, `:=2` to pick
+L5 and one L4 cylinder).
+
+The single-cylinder diagnostic copy remains available with
+`run_first_pick_place_test:=true`.
+
 The script selects and prints an isolated ROS domain and Gazebo partition when
 they are not already set. This prevents unrelated or stale ROS/Gazebo
 processes from sharing Stage 1's controller-manager services and simulation
@@ -276,10 +288,10 @@ three-axis `validate_demo.py` did not pass: its spawn process timed out waiting
 for `/robot_description`, so its controller and pick-and-place sequence were
 not validated. No changes were made to that demo.
 
-## Future placement consumption
+## Placement consumption
 
 The target region is centered at `(-0.15, 0.50, 0.551)` m and has a visible
 `0.95 m x 0.40 m` footprint. The intended cylinder center height on the table
-is 0.60 m. Milestone 3 can use this region directly and remove an object about
-10 seconds after confirmed placement. There is no removal timer in this
-package.
+is 0.60 m. The current top-down motion removes each cylinder from Gazebo and
+MoveIt's planning scene five simulated seconds after confirmed release while
+the robot continues with the next pickup.

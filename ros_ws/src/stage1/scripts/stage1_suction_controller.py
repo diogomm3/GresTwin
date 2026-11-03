@@ -11,7 +11,6 @@ from rclpy.node import Node
 from ros_gz_interfaces.msg import Contacts, Entity, MaterialColor
 from std_msgs.msg import Bool, ColorRGBA, Empty, String
 
-
 MODEL_NAME_PATTERN = re.compile(r"stoneware_l[1-5]_[1-5]")
 
 
@@ -103,6 +102,7 @@ class Stage1SuctionController(Node):
             return
 
         self._enabled = message.data
+        self._pad_contacts = {pad: set() for pad in range(1, 6)}
         if self._enabled:
             self.get_logger().info("Suction enabled.")
             self._try_attach()
@@ -121,6 +121,10 @@ class Stage1SuctionController(Node):
         self._publish_pad_colors()
 
     def _on_pad_contacts(self, pad, message):
+        if not self._enabled:
+            self._pad_contacts[pad].clear()
+            return
+
         contacted_models = set()
         for contact in message.contacts:
             for entity in (contact.collision1, contact.collision2):
@@ -128,8 +132,7 @@ class Stage1SuctionController(Node):
                 if match is not None and match.group() in self._cylinder_names:
                     contacted_models.add(match.group())
         self._pad_contacts[pad] = contacted_models
-        if self._enabled:
-            self._try_attach()
+        self._try_attach()
 
     def _on_detachable_joint_state(self, cylinder_name, message):
         state = message.data.strip().lower()
